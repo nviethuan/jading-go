@@ -1,0 +1,22 @@
+services:
+  app:
+    image: golang:1.25
+    container_name: binance-bot
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - 8080:8080
+    env_file:
+      - .env
+    tty: true
+    stdin_open: true
+
+  db:
+    build:
+      context: .
+      dockerfile: sqliteadmin.dockerfile
+    ports:
+      - 8081:8080
+    volumes:
+      - .data/:/data
