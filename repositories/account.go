@@ -30,15 +30,18 @@ func (a *AccountRepository) FindByID(id int) models.Account {
 	return account
 }
 
-func (a *AccountRepository) FindBySymbol(symbol string, network string) models.Account {
+func (a *AccountRepository) FindBySymbol(symbol string, network string) *models.Account {
 	var account models.Account
-	a.db.Find(&account, "symbol = ? AND network = ?", symbol, network)
-	return account
+	err := a.db.Where("symbol = ? AND network = ?", symbol, network).First(&account).Error
+	if err != nil {
+		return nil
+	}
+	return &account
 }
 
 func (a *AccountRepository) Create(account *models.Account) models.Account {
 	now := time.Now()
-	
+
 	account.CreatedAt = now
 	account.UpdatedAt = now
 

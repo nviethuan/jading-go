@@ -15,13 +15,15 @@ type Account struct {
 	WsStream          string
 	Base              string
 	Quote             string
+	BaseBalance       float64
+	QuoteBalance      float64
 	Fee               float64
 	Profit            float64
-	BuyPrice          float64
+	BuyQuantity       float64
 	IsActived         int8 `gorm:"default:0"`
 	MaxWithdraw       float64
 	InitialInvestment float64
-	StepSize          float64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	StepSize          int8
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

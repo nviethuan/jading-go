@@ -9,23 +9,25 @@ import (
 
 func main() {
 	repositories.NewAccountRepository().Create(&models.Account{
-		Symbol:            "BTCUSDT",
+		Symbol:            "UNIUSDT",
 		Network:           "Testnet",
-		Description:       "BTCUSDT",
-		Email:             "test@test.com",
+		Description:       "UNIUSDT",
+		Email:             "test-uni@test.com",
 		ApiKey:            os.Getenv("BINANCE_API_KEY"),
 		ApiSecret:         os.Getenv("BINANCE_SECRET_KEY"),
 		RestApi:           "https://testnet.binance.vision",
 		WsApi:             "wss://ws-api.testnet.binance.vision/ws-api/v3",
 		WsStream:          "wss://stream.testnet.binance.vision",
-		Base:              "BTC",
+		Base:              "UNI",
 		Quote:             "USDT",
 		Fee:               0.001,
-		Profit:            0.001,
+		BaseBalance:       0,
+		QuoteBalance:      0,
+		Profit:            1,
 		IsActived:         1,
-		BuyPrice:          0,
+		BuyQuantity:       0,
 		MaxWithdraw:       100,
 		InitialInvestment: 100,
-		StepSize:          0.00001,
+		StepSize:          2,
 	})
 }

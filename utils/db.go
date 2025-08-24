@@ -1,8 +1,10 @@
 package utils
 
 import (
+	// "path/filepath"
+
 	"github.com/nviethuan/jading-go/models"
-	
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -11,9 +13,8 @@ var db *gorm.DB
 
 func init() {
 	var err error
-	db, err = gorm.Open(sqlite.Open(".data/mine.db"), &gorm.Config{
-
-	})
+	dbPath := "/app/data/mine.db" // filepath.Join("", ".data", "mine.db")
+	db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
