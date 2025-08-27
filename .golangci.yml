@@ -1,0 +1,22 @@
+# .golangci.yml
+run:
+  timeout: 5m
+  tests: true
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - gosimple
+    - errcheck
+    - ineffassign
+    - gofmt
+    - gofumpt
+    - revive
+    - gocyclo
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0

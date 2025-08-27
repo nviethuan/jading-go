@@ -1,0 +1,142 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+env:
+  REGISTRY: ghcr.io/${{ github.repository }}
+  APP: service
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+      - name: Run lint
+        run: golangci-lint run ./...
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Run tests
+        run: go test ./... -race -coverprofile=coverage.out
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  build-binaries:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    strategy:
+      matrix:
+        goos: [linux]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME}
+          COMMIT=${GITHUB_SHA::7}
+          BUILDTIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=$VERSION -X main.Commit=$COMMIT -X main.BuildTime=$BUILDTIME" -o bin/${{ matrix.goos }}-${{ matrix.goarch }}/app ./cmd/service
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: bin/**
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Set build args
+        id: buildargs
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          echo "COMMIT=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          echo "BUILDTIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_OUTPUT
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.buildargs.outputs.VERSION }}
+            COMMIT=${{ steps.buildargs.outputs.COMMIT }}
+            BUILDTIME=${{ steps.buildargs.outputs.BUILDTIME }}
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Trivy scan image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.REGISTRY }}:latest
+          format: table
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+  sign-image:
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: ${{ secrets.COSIGN_KEY != '' }}
+    steps:
+      - uses: sigstore/cosign-installer@v3
+      - name: Cosign sign
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          echo "${{ secrets.COSIGN_KEY }}" > cosign.key
+          cosign sign --key cosign.key ${{ env.REGISTRY }}:latest
