@@ -168,7 +168,7 @@ func processSell(account *models.Account, bids *[]binance.Bid, usdtBalance float
 			stackTrade.ID,
 			purpose,
 		)
-		
+
 		shouldWithdrawMsg := fmt.Sprintf("💰:%s: *No withdraw*: `%f` (USDT)", strings.ToUpper(account.Symbol), quoteBalance)
 
 		if shouldWithdraw {
@@ -258,6 +258,26 @@ func wsDepthHandler(symbol *string, network *string) func(event *binance.WsParti
 	}
 }
 
+func startTest(bids *[]binance.Bid, asks *[]binance.Ask) func() {
+	return func() {
+		fmt.Println("bids", binance.PrettyPrint(bids))
+		fmt.Println("asks", binance.PrettyPrint(asks))
+	}
+}
+
+func wsDepthHandlerTest() func(event *binance.WsPartialDepthEvent) {
+	bids := []binance.Bid{}
+	asks := []binance.Ask{}
+
+	throttled := utils.Throttle(startTest(&bids, &asks), 3*time.Second)
+
+	return func(event *binance.WsPartialDepthEvent) {
+		bids = event.Bids
+		asks = event.Asks
+		throttled()
+	}
+}
+
 func errHandler(err error) {
 	fmt.Println(err)
 }
@@ -267,6 +287,41 @@ func Run() {
 	slackClient.NewSlackClient()
 	symbolStr := flag.String("symbol", "UNIUSDT", "symbol")
 	network := flag.String("network", "Testnet", "network")
+	flag.Parse()
+
+	websocketStreamClient := binance.NewWebsocketStreamClient(false, "wss://stream.testnet.binance.vision")
+
+	symbols := strings.Split(*symbolStr, ",")
+
+	doneChs := make([]chan struct{}, len(symbols))
+	wg := sync.WaitGroup{}
+
+	for i, symbol := range symbols {
+		wg.Add(1)
+		go func(idx int, sym string) {
+			defer wg.Done()
+			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(&sym, network), errHandler)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			doneChs[idx] = doneCh
+		}(i, symbol)
+	}
+
+	wg.Wait()
+
+	for _, doneCh := range doneChs {
+		if doneCh != nil {
+			<-doneCh
+		}
+	}
+}
+
+func RunTest() {
+	slackClient = &utils.SlackClient{}
+	slackClient.NewSlackClient()
+	symbolStr := flag.String("symbol", "UNIUSDT", "symbol")
 	flag.Parse()
 
 	websocketStreamClient := binance.NewWebsocketStreamClient(false)
@@ -280,7 +335,7 @@ func Run() {
 		wg.Add(1)
 		go func(idx int, sym string) {
 			defer wg.Done()
-			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(&sym, network), errHandler)
+			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandlerTest(), errHandler)
 			if err != nil {
 				fmt.Println(err)
 				return

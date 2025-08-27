@@ -19,7 +19,7 @@ func init() {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.Account{}, &models.Transaction{}, &models.StackTrade{})
+	db.AutoMigrate(&models.Account{}, &models.StackTrade{})
 }
 
 func GetDB() *gorm.DB {

@@ -1,6 +1,6 @@
 APP:=service
 PKG:=./
-BIN:=bin/$(APP)
+BIN:=./bin/$(APP)
 VERSION?=$(shell git describe --tags --always --dirty)
 COMMIT?=$(shell git rev-parse --short HEAD)
 BUILDTIME?=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -18,7 +18,7 @@ test:
 	go test ./... -cover -race
 
 build:
-	CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILDTIME)" -o $(BIN) $(PKG)
+	CGO_ENABLED=1 go build -ldflags "-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILDTIME)" -o $(BIN) $(PKG)
 
 clean:
 	rm -rf bin
