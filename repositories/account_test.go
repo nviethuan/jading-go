@@ -323,7 +323,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 		createdAccount := repo.Create(account)
 
 		// Kiểm tra account có thể tìm thấy bằng symbol và network
-		foundAccount := repo.FindBySymbol("TESTUSDT5", "Testnet")
+		foundAccount := repo.FindBySymbol(&createdAccount.Symbol, &createdAccount.Network)
 		if foundAccount == nil {
 			t.Error("Expected to find account by symbol and network before deletion")
 		}
@@ -337,7 +337,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 		}
 
 		// Kiểm tra account không còn tìm thấy bằng symbol và network
-		foundAccountAfterDelete := repo.FindBySymbol("TESTUSDT5", "Testnet")
+		foundAccountAfterDelete := repo.FindBySymbol(&createdAccount.Symbol, &createdAccount.Network)
 		if foundAccountAfterDelete != nil {
 			t.Error("Expected account to be deleted and not found by symbol and network")
 		}

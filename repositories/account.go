@@ -30,9 +30,9 @@ func (a *AccountRepository) FindByID(id int) models.Account {
 	return account
 }
 
-func (a *AccountRepository) FindBySymbol(symbol string, network string) *models.Account {
+func (a *AccountRepository) FindBySymbol(symbol *string, network *string) *models.Account {
 	var account models.Account
-	err := a.db.Where("symbol = ? AND network = ?", symbol, network).First(&account).Error
+	err := a.db.Where("symbol = ? AND network = ?", *symbol, *network).First(&account).Error
 	if err != nil {
 		return nil
 	}

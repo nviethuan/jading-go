@@ -27,11 +27,12 @@ func TestSlackClient_SendInfo_Integration(t *testing.T) {
 
 	t.Run("SendInfo_WithTextBlock", func(t *testing.T) {
 		// Create a simple text block message
-		textBlock := slack.NewTextBlockObject("mrkdwn", "Test message from integration test", false, false)
+
+		textBlock := slack.NewTextBlockObject("mrkdwn", "*bold text* and `code` with _italic_", false, true)
 		sectionBlock := slack.NewSectionBlock(textBlock, nil, nil)
 
 		// Send the message
-		client.SendInfo(sectionBlock)
+		<-client.SendInfo("🍏 Test message from integration test", "", sectionBlock)
 
 		// Give some time for the async operation to complete
 		time.Sleep(2 * time.Second)
@@ -47,7 +48,7 @@ func TestSlackClient_SendInfo_Integration(t *testing.T) {
 		headerText := slack.NewTextBlockObject("plain_text", "Integration Test Header", false, false)
 		headerBlock := slack.NewHeaderBlock(headerText)
 
-		bodyText := slack.NewTextBlockObject("mrkdwn", "*Bold text* and `code` with _italic_", false, false)
+		bodyText := slack.NewTextBlockObject("mrkdwn", ":uniusdt: *Bold text* and `code` with _italic_", false, false)
 		bodyBlock := slack.NewSectionBlock(bodyText, nil, nil)
 
 		dividerBlock := slack.NewDividerBlock()
@@ -62,10 +63,7 @@ func TestSlackClient_SendInfo_Integration(t *testing.T) {
 		blocks := []slack.Block{headerBlock, bodyBlock, dividerBlock, fieldsBlock}
 
 		// Send each block individually to test SendInfo
-		for _, block := range blocks {
-			client.SendInfo(block)
-			time.Sleep(500 * time.Millisecond) // Small delay between messages
-		}
+		<-client.SendInfo("🍏 SendInfo_WithComplexBlock", "", blocks...)
 
 		// Give time for all async operations to complete
 		time.Sleep(3 * time.Second)
@@ -78,7 +76,7 @@ func TestSlackClient_SendInfo_Integration(t *testing.T) {
 		contextText := slack.NewTextBlockObject("mrkdwn", "Test context message", false, false)
 		contextBlock := slack.NewContextBlock("", contextText)
 
-		client.SendInfo(contextBlock)
+		<-client.SendInfo("🍏 Test SendInfo_WithContextBlock", "", contextBlock)
 
 		time.Sleep(2 * time.Second)
 

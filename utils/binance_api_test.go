@@ -1,18 +1,27 @@
 package utils
 
 import (
+	"context"
+	"fmt"
+	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	binance "github.com/binance/binance-connector-go"
+	"github.com/nviethuan/jading-go/models"
 )
 
 func TestBinance_NewBinanceWSClientAPI(t *testing.T) {
 	t.Run("should create websocket API client", func(t *testing.T) {
 		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
 
-		result := binanceClient.NewBinanceWSClientAPI("test-api-key", "test-secret-key", "wss://test.binance.com")
+		result := binanceClient.NewBinanceWSClientAPI(account)
 
 		if result == nil {
 			t.Error("Expected non-nil result")
@@ -25,13 +34,18 @@ func TestBinance_NewBinanceWSClientAPI(t *testing.T) {
 
 	t.Run("should not recreate client if already exists", func(t *testing.T) {
 		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
 
 		// Tạo client lần đầu
-		firstResult := binanceClient.NewBinanceWSClientAPI("test-api-key", "test-secret-key", "wss://test.binance.com")
+		firstResult := binanceClient.NewBinanceWSClientAPI(account)
 		firstClient := binanceClient.websocketAPIClient
 
 		// Tạo client lần thứ hai
-		secondResult := binanceClient.NewBinanceWSClientAPI("different-key", "different-secret", "wss://different.binance.com")
+		secondResult := binanceClient.NewBinanceWSClientAPI(account)
 		secondClient := binanceClient.websocketAPIClient
 
 		if firstClient != secondClient {
@@ -47,8 +61,13 @@ func TestBinance_NewBinanceWSClientAPI(t *testing.T) {
 func TestBinance_NewBinanceAPI(t *testing.T) {
 	t.Run("should create REST API client", func(t *testing.T) {
 		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
 
-		result := binanceClient.NewBinanceAPI("test-api-key", "test-secret-key", "https://test.binance.com")
+		result := binanceClient.NewBinanceAPI(account)
 
 		if result == nil {
 			t.Error("Expected non-nil result")
@@ -61,13 +80,18 @@ func TestBinance_NewBinanceAPI(t *testing.T) {
 
 	t.Run("should not recreate client if already exists", func(t *testing.T) {
 		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
 
 		// Tạo client lần đầu
-		firstResult := binanceClient.NewBinanceAPI("test-api-key", "test-secret-key", "https://test.binance.com")
+		firstResult := binanceClient.NewBinanceAPI(account)
 		firstClient := binanceClient.client
 
 		// Tạo client lần thứ hai
-		secondResult := binanceClient.NewBinanceAPI("different-key", "different-secret", "https://different.binance.com")
+		secondResult := binanceClient.NewBinanceAPI(account)
 		secondClient := binanceClient.client
 
 		if firstClient != secondClient {
@@ -119,9 +143,14 @@ func TestBinance_NewBinanceStreamClient(t *testing.T) {
 func TestBinance_AccountInfo(t *testing.T) {
 	t.Run("should return channel for account info", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("test-api-key", "test-secret-key", "https://test.binance.com")
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
-		accountInfoChan := binanceClient.AccountInfo()
+		accountInfoChan := binanceClient.AccountInfoWithContext(context.Background())
 
 		if accountInfoChan == nil {
 			t.Error("Expected non-nil channel")
@@ -130,8 +159,7 @@ func TestBinance_AccountInfo(t *testing.T) {
 		// Kiểm tra channel có thể nhận dữ liệu
 		select {
 		case accountInfo := <-accountInfoChan:
-			// Với test API keys, có thể sẽ trả về empty response hoặc error
-			_ = accountInfo
+			fmt.Println(binance.PrettyPrint(accountInfo))
 		case <-time.After(5 * time.Second):
 			// Timeout có thể xảy ra với test API keys, không phải lỗi
 			t.Log("Timeout waiting for account info (expected with test API keys)")
@@ -150,13 +178,18 @@ func TestBinance_AccountInfo(t *testing.T) {
 			}
 		}()
 
-		accountInfoChan := binanceClient.AccountInfo()
+		accountInfoChan := binanceClient.AccountInfoWithContext(context.Background())
 		_ = accountInfoChan
 	})
 
 	t.Run("should handle API error gracefully", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("invalid-key", "invalid-secret", "https://test.binance.com")
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
 		// Test này cũng có thể panic vì client được khởi tạo nhưng API call vẫn có thể gây lỗi
 		defer func() {
@@ -165,7 +198,7 @@ func TestBinance_AccountInfo(t *testing.T) {
 			}
 		}()
 
-		accountInfoChan := binanceClient.AccountInfo()
+		accountInfoChan := binanceClient.AccountInfoWithContext(context.Background())
 
 		if accountInfoChan == nil {
 			t.Error("Expected non-nil channel")
@@ -183,10 +216,65 @@ func TestBinance_AccountInfo(t *testing.T) {
 	})
 }
 
+func TestBinance_TradeFee(t *testing.T) {
+	t.Run("should return channel for trade fee", func(t *testing.T) {
+		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
+
+		tradeFeeChan := binanceClient.TradeFee(context.Background(), "UNIUSDT")
+
+		if tradeFeeChan == nil {
+			t.Error("Expected non-nil channel")
+		}
+
+		select {
+		case tradeFee := <-tradeFeeChan:
+			fmt.Println(binance.PrettyPrint(tradeFee))
+		case <-time.After(5 * time.Second):
+			t.Log("Timeout waiting for trade fee (expected with test API keys)")
+		}
+	})
+}
+
+func TestBinance_Buy(t *testing.T) {
+	t.Run("should return channel for buy", func(t *testing.T) {
+		binanceClient := &Binance{}
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
+
+		buyChan := binanceClient.Buy("BTCUSDT", 0.0001, 110189.57, "LIMIT")
+
+		if buyChan == nil {
+			t.Error("Expected non-nil channel")
+		}
+
+		select {
+		case buyResponse := <-buyChan:
+			fmt.Println(binance.PrettyPrint(buyResponse))
+		case <-time.After(5 * time.Second):
+			t.Log("Timeout waiting for buy response (expected with test API keys)")
+		}
+	})
+}
+
 func TestBinance_CandlestickData(t *testing.T) {
 	t.Run("should return channel for candlestick data", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("test-api-key", "test-secret-key", "https://test.binance.com")
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
 		candlestickChan := binanceClient.CandlestickData("BTCUSDT", "1m")
 
@@ -223,7 +311,15 @@ func TestBinance_CandlestickData(t *testing.T) {
 
 	t.Run("should handle API error gracefully", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("invalid-key", "invalid-secret", "https://test.binance.com")
+		// Dấu & trước models.Account dùng để tạo một con trỏ (pointer) tới struct Account.
+		// Điều này giúp truyền tham chiếu (reference) thay vì truyền giá trị (value) khi gọi hàm,
+		// từ đó các thay đổi trên biến account sẽ ảnh hưởng trực tiếp đến struct gốc.
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
 		// Test này cũng có thể panic vì client được khởi tạo nhưng API call vẫn có thể gây lỗi
 		defer func() {
@@ -251,7 +347,12 @@ func TestBinance_CandlestickData(t *testing.T) {
 
 	t.Run("should handle different symbols and intervals", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("test-api-key", "test-secret-key", "https://test.binance.com")
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
 		testCases := []struct {
 			symbol   string
@@ -316,7 +417,12 @@ func TestBalanceFiltering(t *testing.T) {
 
 	t.Run("should create channel successfully", func(t *testing.T) {
 		binanceClient := &Binance{}
-		binanceClient.NewBinanceAPI("test-key", "test-secret", "https://test.binance.com")
+		account := &models.Account{
+			ApiKey:    os.Getenv("BINANCE_API_KEY"),
+			ApiSecret: os.Getenv("BINANCE_SECRET_KEY"),
+			RestApi:   os.Getenv("BINANCE_BASE_URL"),
+		}
+		binanceClient.NewBinanceAPI(account)
 
 		// Chỉ kiểm tra việc tạo channel, không gọi API
 		candlestickChan := binanceClient.CandlestickData("BTCUSDT", "1m")
