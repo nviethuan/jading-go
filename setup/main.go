@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"log"
 	"os"
 
 	"github.com/nviethuan/jading-go/models"
@@ -8,26 +10,16 @@ import (
 )
 
 func main() {
-	repositories.NewAccountRepository().Create(&models.Account{
-		Symbol:            "UNIUSDT",
-		Network:           "Testnet",
-		Description:       "UNIUSDT",
-		Email:             "test-uni@test.com",
-		ApiKey:            os.Getenv("BINANCE_API_KEY"),
-		ApiSecret:         os.Getenv("BINANCE_SECRET_KEY"),
-		RestApi:           "https://testnet.binance.vision",
-		WsApi:             "wss://ws-api.testnet.binance.vision/ws-api/v3",
-		WsStream:          "wss://stream.testnet.binance.vision",
-		Base:              "UNI",
-		Quote:             "USDT",
-		Fee:               0.001,
-		BaseBalance:       0,
-		QuoteBalance:      0,
-		Profit:            1,
-		IsActived:         1,
-		BuyQuantity:       0,
-		MaxWithdraw:       100,
-		InitialInvestment: 100,
-		StepSize:          2,
-	})
+
+	accounts, err := os.ReadFile("accounts.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var accountData []models.Account
+	json.Unmarshal(accounts, &accountData)
+
+	for _, account := range accountData {
+		repositories.NewAccountRepository().Create(&account)
+	}
 }

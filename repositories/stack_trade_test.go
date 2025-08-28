@@ -12,7 +12,7 @@ import (
 )
 
 func setupTestDB() *gorm.DB {
-	db := utils.GetDB()
+	db := utils.GetDBStackTrade()
 	db.Exec("DELETE FROM stack_trades")
 	return db
 }

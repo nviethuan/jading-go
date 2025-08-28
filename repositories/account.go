@@ -14,7 +14,7 @@ type AccountRepository struct {
 
 func NewAccountRepository() *AccountRepository {
 	return &AccountRepository{
-		db: utils.GetDB(),
+		db: utils.GetDBAccount(),
 	}
 }
 

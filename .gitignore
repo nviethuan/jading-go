@@ -5,3 +5,5 @@ data/
 .env
 
 bin/service
+
+accounts.json

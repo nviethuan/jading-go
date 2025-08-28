@@ -14,7 +14,7 @@ type StackTradeRepository struct {
 
 func NewStackTradeRepository() *StackTradeRepository {
 	return &StackTradeRepository{
-		db: utils.GetDB(),
+		db: utils.GetDBStackTrade(),
 	}
 }
 

@@ -9,19 +9,31 @@ import (
 	"gorm.io/gorm"
 )
 
-var db *gorm.DB
+var dbAccount *gorm.DB
+var dbStackTrade *gorm.DB
 
 func init() {
 	var err error
-	dbPath := "/app/data/mine.db" // filepath.Join("", ".data", "mine.db")
-	db, err = gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	dbPathAccount := "/app/data/accounts.db"
+	dbPathStackTrade := "/app/data/stack_trade.db"
+	dbAccount, err = gorm.Open(sqlite.Open(dbPathAccount), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
 
-	db.AutoMigrate(&models.Account{}, &models.StackTrade{})
+	dbStackTrade, err = gorm.Open(sqlite.Open(dbPathStackTrade), &gorm.Config{})
+	if err != nil {
+		panic("failed to connect database")
+	}
+
+	dbAccount.AutoMigrate(&models.Account{})
+	dbStackTrade.AutoMigrate(&models.StackTrade{})
 }
 
-func GetDB() *gorm.DB {
-	return db
+func GetDBAccount() *gorm.DB {
+	return dbAccount
+}
+
+func GetDBStackTrade() *gorm.DB {
+	return dbStackTrade
 }
