@@ -24,7 +24,8 @@ func (b *Binance) NewBinanceWSClientAPI(account *models.Account) *Binance {
 
 func (b *Binance) NewBinanceAPI(account *models.Account) *Binance {
 	if b.client == nil {
-		b.client = binance.NewClient(account.ApiKey, account.ApiSecret, account.RestApi)
+		client := binance.NewClient(account.ApiKey, account.ApiSecret, account.RestApi)
+		b.client = client
 	}
 	return b
 }
@@ -36,14 +37,14 @@ func (b *Binance) NewBinanceStreamClient() *Binance {
 	return b
 }
 
-func (b *Binance) AccountInfo() chan binance.AccountResponse {
-	accountInfo := make(chan binance.AccountResponse, 1)
+func (b *Binance) AccountInfo() chan *binance.AccountResponse {
+	accountInfo := make(chan *binance.AccountResponse, 1)
 	go func() {
 		defer close(accountInfo)
 
 		response, err := b.client.NewGetAccountService().Do(context.Background(), binance.WithRecvWindow(10000))
 		if err != nil {
-			accountInfo <- binance.AccountResponse{}
+			accountInfo <- nil
 			return
 		}
 
@@ -60,7 +61,7 @@ func (b *Binance) AccountInfo() chan binance.AccountResponse {
 
 		response.Balances = balances
 
-		accountInfo <- *response
+		accountInfo <- response
 	}()
 
 	return accountInfo

@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,14 +18,16 @@ import (
 )
 
 var slackClient *utils.SlackClient
-var binanceClient *utils.Binance
+var binanceClient *utils.Binance = &utils.Binance{}
 
-func processBuy(account *models.Account, symbol *string, asks *[]binance.Ask, usdtBalance float64, candles *[]*binance.KlinesResponse) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, candles *[]*binance.KlinesResponse) {
+	prefixLog := fmt.Sprintf("%s BUY %s: ", t, account.Symbol)
+	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
 	// stop if we have sold all base balance and usdt balance is less than 8
 	hasSold := account.BaseBalance == 0
 	if usdtBalance < account.MinStopLoss && !hasSold {
-		fmt.Println("[", symbol, "] STOP! USDT balance is less than 8 and base balance is 0")
+		fmt.Printf("%s STOP! USDT balance is less than 8 and base balance is 0\n", prefixLog)
 		return
 	}
 	// ------------
@@ -35,11 +38,12 @@ func processBuy(account *models.Account, symbol *string, asks *[]binance.Ask, us
 	ask := (*asks)[0]
 
 	oldPrice, _ := strconv.ParseFloat(oldestCandle.Open, 64)
+	oldTime := time.UnixMilli(int64(oldestCandle.OpenTime)).Format("2006-01-02 15:04:05")
 	askPrice, _ := strconv.ParseFloat(ask.Price, 64)
 	askValue, _ := strconv.ParseFloat(ask.Quantity, 64)
 
 	// take the open price of the oldest candle and compare it with the best ask price
-	// if the ask price drops more than 1.5% below the open price of the oldest candle, consider it a downtrend
+	// if the ask price drops more than the threshold (default: 0.015 ~ 1.5%) below the open price of the oldest candle, consider it a downtrend
 	isDownTrend := (oldPrice-askPrice)/oldPrice >= account.Threshold // ✅
 	// ------------
 
@@ -51,9 +55,33 @@ func processBuy(account *models.Account, symbol *string, asks *[]binance.Ask, us
 	// ------------
 
 	// combine all conditions
+	shouldBuy := isDownTrend && isEnoughUsdtBalance
+
+	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s Should Buy: %t\n%s isDownTrend: %t\n%s isEnoughUsdtBalance: %t\n",
+		// OLD
+		prefixLog,
+		oldPrice,
+		prefixLog,
+		oldTime,
+
+		// ASK
+		prefixLog,
+		askPrice,
+		prefixLog,
+		askValue,
+
+		prefixLog,
+		shouldBuy,
+		prefixLog,
+		isDownTrend,
+		prefixLog,
+		isEnoughUsdtBalance,
+	)
 	if isDownTrend && isEnoughUsdtBalance {
 		// calculate the quantity we want to buy
 		quantity = utils.FloorTo(quantity, int(account.StepSize))
+
+		fmt.Printf("%s Quantity: %f\n", prefixLog, quantity)
 		// ------
 
 		// buy #########################################################
@@ -109,9 +137,12 @@ func processBuy(account *models.Account, symbol *string, asks *[]binance.Ask, us
 
 		return
 	}
+	fmt.Println(prefixLog + "Process Buy DONE! =======")
 }
 
-func processSell(account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
+func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
+	prefixLog := fmt.Sprintf("%s SELL %s: ", t, account.Symbol)
+	fmt.Printf("%s Process Sell =======\n", prefixLog)
 	for i := len(*bids) - 1; i >= 0; i-- {
 		bid := (*bids)[i]
 		bidPrice, _ := strconv.ParseFloat(bid.Price, 64)
@@ -119,91 +150,110 @@ func processSell(account *models.Account, bids *[]binance.Bid, usdtBalance float
 
 		stopLoss := bidPrice * (1 - account.StopLoss)
 
-		stackTrades := repositories.NewStackTradeRepository().FindBySymbol(account.Symbol, "BUY", bidPrice, bidValue*0.07, stopLoss)
+		b70 := bidValue * 0.7
 
-		if len(stackTrades) == 0 {
-			continue
+		stackTrades := repositories.NewStackTradeRepository().FindBySymbol(account.Symbol, "BUY", bidPrice, b70, stopLoss)
+
+		if len(stackTrades) > 0 {
+			stackTrade := stackTrades[0]
+			isStopLoss := stackTrade.PriceBuy >= stopLoss
+
+			purpose := "*sell*"
+			if isStopLoss {
+				purpose = "`stoploss`"
+			}
+
+			sellChan := binanceClient.Sell(account.Symbol, stackTrade.Quantity, bidPrice, "LIMIT")
+			sellResponse := <-sellChan
+
+			quantityEarn, _ := strconv.ParseFloat(sellResponse.OrigQty, 64)
+
+			shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw
+			withdrawQuantity := account.MaxWithdraw - (usdtBalance + quantityEarn)
+
+			if shouldWithdraw {
+				<-binanceClient.Withdraw("USDT", withdrawQuantity)
+			}
+
+			stackTrade.Status = "SELL"
+			stackTrade.PriceSell = bidPrice
+			stackTrade.UpdatedAt = time.Now()
+			repositories.NewStackTradeRepository().Update(*stackTrade)
+
+			// quote balance = quantity has bought * current price sell
+			quoteBalance := stackTrade.Quantity * bidPrice
+
+			account.BaseBalance = math.Max(0, account.BaseBalance-stackTrade.Quantity)
+			account.QuoteBalance = quoteBalance
+
+			repositories.NewAccountRepository().Update(*account)
+
+			// log to slack
+			title := fmt.Sprintf("💰 Sell %f (%s) with %f", stackTrade.Quantity, strings.ToUpper(account.Base), bidPrice)
+			msg := fmt.Sprintf(":%s: :dollar: [SELL] %f (%s) with price *%f* - order id: `%d`\nby %s",
+				strings.ToLower(account.Symbol), // emoji
+				stackTrade.Quantity,
+				strings.ToUpper(account.Base),
+				bidPrice,
+				stackTrade.ID,
+				purpose,
+			)
+
+			shouldWithdrawMsg := fmt.Sprintf("💰:%s: *No withdraw*: `%f` (USDT)", strings.ToUpper(account.Symbol), quoteBalance)
+
+			if shouldWithdraw {
+				shouldWithdrawMsg = fmt.Sprintf("💰:%s: *Withdraw*: `%f` (USDT)", strings.ToUpper(account.Symbol), withdrawQuantity)
+			}
+
+			bodyText := slack.NewTextBlockObject("mrkdwn", msg, false, true)
+			shouldWithdrawText := slack.NewTextBlockObject("mrkdwn", shouldWithdrawMsg, false, true)
+
+			bodyBlock1 := slack.NewSectionBlock(bodyText, nil, nil)
+			bodyBlock2 := slack.NewSectionBlock(shouldWithdrawText, nil, nil)
+
+			blocks := []slack.Block{bodyBlock1}
+
+			if shouldWithdraw {
+				blocks = append(blocks, bodyBlock2)
+			}
+
+			<-slackClient.SendInfo(title, "", blocks...)
+
+			return
 		}
 
-		stackTrade := stackTrades[0]
-		isStopLoss := stackTrade.PriceBuy >= stopLoss
-
-		purpose := "*sell*"
-		if isStopLoss {
-			purpose = "`stoploss`"
-		}
-
-		sellChan := binanceClient.Sell(account.Symbol, stackTrade.Quantity, bidPrice, "LIMIT")
-		sellResponse := <-sellChan
-
-		quantityEarn, _ := strconv.ParseFloat(sellResponse.OrigQty, 64)
-
-		shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw
-		withdrawQuantity := account.MaxWithdraw - (usdtBalance + quantityEarn)
-
-		if shouldWithdraw {
-			<-binanceClient.Withdraw("USDT", withdrawQuantity)
-		}
-
-		stackTrade.Status = "SELL"
-		stackTrade.PriceSell = bidPrice
-		stackTrade.UpdatedAt = time.Now()
-		repositories.NewStackTradeRepository().Update(*stackTrade)
-
-		// quote balance = quantity has bought * current price sell
-		quoteBalance := stackTrade.Quantity * bidPrice
-
-		account.BaseBalance = math.Max(0, account.BaseBalance-stackTrade.Quantity)
-		account.QuoteBalance = quoteBalance
-
-		repositories.NewAccountRepository().Update(*account)
-
-		// log to slack
-		title := fmt.Sprintf("💰 Sell %f (%s) with %f", stackTrade.Quantity, strings.ToUpper(account.Base), bidPrice)
-		msg := fmt.Sprintf(":%s: :dollar: [SELL] %f (%s) with price *%f* - order id: `%d`\nby %s",
-			strings.ToLower(account.Symbol), // emoji
-			stackTrade.Quantity,
-			strings.ToUpper(account.Base),
+		fmt.Printf("%s No stack trade found\n%s Bid price: %f\n%s Bid value: %f\n%s BID 70: %f\n%s STOP LOSS: %f\n\n",
+			prefixLog,
+			// BID
+			prefixLog,
 			bidPrice,
-			stackTrade.ID,
-			purpose,
+			prefixLog,
+			bidValue,
+
+			// BID 70
+			prefixLog,
+			b70,
+
+			// STOP LOSS
+			prefixLog,
+			stopLoss, // STOP LOSS
 		)
-
-		shouldWithdrawMsg := fmt.Sprintf("💰:%s: *No withdraw*: `%f` (USDT)", strings.ToUpper(account.Symbol), quoteBalance)
-
-		if shouldWithdraw {
-			shouldWithdrawMsg = fmt.Sprintf("💰:%s: *Withdraw*: `%f` (USDT)", strings.ToUpper(account.Symbol), withdrawQuantity)
-		}
-
-		bodyText := slack.NewTextBlockObject("mrkdwn", msg, false, true)
-		shouldWithdrawText := slack.NewTextBlockObject("mrkdwn", shouldWithdrawMsg, false, true)
-
-		bodyBlock1 := slack.NewSectionBlock(bodyText, nil, nil)
-		bodyBlock2 := slack.NewSectionBlock(shouldWithdrawText, nil, nil)
-
-		blocks := []slack.Block{bodyBlock1}
-
-		if shouldWithdraw {
-			blocks = append(blocks, bodyBlock2)
-		}
-
-		<-slackClient.SendInfo(title, "", blocks...)
-
-		return
 	}
+	fmt.Println(prefixLog + "Process Sell DONE!=======")
 }
 
-func start(symbol *string, network *string, bids *[]binance.Bid, asks *[]binance.Ask) func() {
+func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.Ask) func() {
 	return func() {
+		t := fmt.Sprintf("[%s]", time.Now().Format("2006-01-02 15:04:05"))
 		// get account from database
-		account := repositories.NewAccountRepository().FindBySymbol(symbol, network)
+		account := repositories.NewAccountRepository().FindBySymbol(&symbol, &network)
 		if account == nil {
-			fmt.Println("[", *symbol, "] Account not found")
+			fmt.Printf("%s %s - STOP! Account not found\n", t, symbol)
 			return
 		}
 
 		if account.IsActived == 0 {
-			fmt.Println("[", symbol, "] Account is not actived")
+			fmt.Printf("%s %s - STOP! Account is not actived\n", t, symbol)
 			return
 		}
 		// -----------
@@ -214,7 +264,17 @@ func start(symbol *string, network *string, bids *[]binance.Bid, asks *[]binance
 
 		// get account info and candlestick data
 		accountInfoChan := binanceClient.AccountInfo()
-		candlestickDataChan := binanceClient.CandlestickData(*symbol, "15m")
+		candlestickDataChan := binanceClient.CandlestickData(symbol, "15m")
+
+		if accountInfoChan == nil {
+			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)
+			return
+		}
+
+		if candlestickDataChan == nil {
+			fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, symbol)
+			return
+		}
 
 		accountInfo := <-accountInfoChan
 		candles := <-candlestickDataChan
@@ -237,17 +297,17 @@ func start(symbol *string, network *string, bids *[]binance.Bid, asks *[]binance
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(account, symbol, asks, usdtBalance, &candles)
+			processBuy(t, account, asks, usdtBalance, &candles)
 		}()
 		go func() {
 			defer wg.Done()
-			processSell(account, bids, usdtBalance)
+			processSell(t, account, bids, usdtBalance)
 		}()
 		wg.Wait()
 	}
 }
 
-func wsDepthHandler(symbol *string, network *string) func(event *binance.WsPartialDepthEvent) {
+func wsDepthHandler(symbol string, network string) func(event *binance.WsPartialDepthEvent) {
 	bids := []binance.Bid{}
 	asks := []binance.Ask{}
 	throttled := utils.Throttle(start(symbol, network, &bids, &asks), 3*time.Second)
@@ -285,28 +345,48 @@ func errHandler(err error) {
 func Run() {
 	slackClient = &utils.SlackClient{}
 	slackClient.NewSlackClient()
-	symbolStr := flag.String("symbol", "UNIUSDT", "symbol")
-	network := flag.String("network", "Testnet", "network")
-	flag.Parse()
+	symbolAndNetworkStr := os.Getenv("SYMBOL_AND_NETWORK")
+
+	if symbolAndNetworkStr == "" {
+		str := flag.String("symbol", "", "symbol and network (symbol1:network,symbol2:network)")
+
+		flag.Parse()
+
+		if *str == "" {
+			fmt.Println("symbol and network is required")
+			return
+		}
+
+		symbolAndNetworkStr = *str
+	}
 
 	websocketStreamClient := binance.NewWebsocketStreamClient(false, "wss://stream.testnet.binance.vision")
 
-	symbols := strings.Split(*symbolStr, ",")
+	symbolsAndNetworks := strings.Split(symbolAndNetworkStr, ",")
 
-	doneChs := make([]chan struct{}, len(symbols))
+	doneChs := make([]chan struct{}, len(symbolsAndNetworks))
 	wg := sync.WaitGroup{}
 
-	for i, symbol := range symbols {
+	for i, symbolAndNetwork := range symbolsAndNetworks {
+		symbolAndNetwork := strings.Split(symbolAndNetwork, ":")
+		if len(symbolAndNetwork) < 2 {
+			t := fmt.Sprintf("[%s]", time.Now().Format("2006-01-02 15:04:05"))
+			fmt.Printf("%s - STOP! Invalid symbol and network: %s\nSymbol should be like this: symbol1:network,symbol2:network\n", t, symbolAndNetwork)
+			return
+		}
+		symbol := strings.ToUpper(strings.TrimSpace(symbolAndNetwork[0]))
+		network := strings.TrimSpace(symbolAndNetwork[1])
+
 		wg.Add(1)
-		go func(idx int, sym string) {
+		go func(idx int, sym string, net string) {
 			defer wg.Done()
-			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(&sym, network), errHandler)
+			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(sym, net), errHandler)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 			doneChs[idx] = doneCh
-		}(i, symbol)
+		}(i, symbol, network)
 	}
 
 	wg.Wait()

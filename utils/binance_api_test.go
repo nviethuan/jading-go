@@ -287,6 +287,7 @@ func TestBinance_CandlestickData(t *testing.T) {
 		case candlestickData := <-candlestickChan:
 			// Với test API keys, có thể sẽ trả về nil hoặc error
 			_ = candlestickData
+			fmt.Println(binance.PrettyPrint(candlestickData))
 		case <-time.After(5 * time.Second):
 			// Timeout có thể xảy ra với test API keys, không phải lỗi
 			t.Log("Timeout waiting for candlestick data (expected with test API keys)")
