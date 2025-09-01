@@ -244,7 +244,12 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.Ask) func() {
 	return func() {
-		t := fmt.Sprintf("[%s]", time.Now().Format("2006-01-02 15:04:05"))
+		loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		t := fmt.Sprintf("[%s]", time.Now().In(loc).Format("2006-01-02 15:04:05"))
 		// get account from database
 		account := repositories.NewAccountRepository().FindBySymbol(&symbol, &network)
 		if account == nil {
