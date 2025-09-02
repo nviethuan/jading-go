@@ -3,6 +3,8 @@ package utils
 import (
 	// "path/filepath"
 
+	"os"
+
 	"github.com/nviethuan/jading-go/models"
 
 	"gorm.io/driver/sqlite"
@@ -14,8 +16,12 @@ var dbStackTrade *gorm.DB
 
 func init() {
 	var err error
-	dbPathAccount := "/app/data/accounts.db"
-	dbPathStackTrade := "/app/data/stack_trade.db"
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic("failed to get user home directory")
+	}
+	dbPathAccount := home + "/app/data/accounts.db"
+	dbPathStackTrade := home + "/app/data/stack_trade.db"
 	dbAccount, err = gorm.Open(sqlite.Open(dbPathAccount), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
