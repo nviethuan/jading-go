@@ -85,7 +85,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// ------
 
 		// buy #########################################################
-		buyChan := binanceClient.Buy(account.Symbol, quantity, askPrice, "BUY")
+		buyChan := binanceClient.Buy(account.Symbol, quantity, askPrice, "LIMIT")
 		buyResponse := <-buyChan
 		// --- #########################################################
 
