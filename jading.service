@@ -1,0 +1,15 @@
+[Unit]
+Description=Jading-Golang
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/app
+EnvironmentFile=/home/ubuntu/app/.env
+ExecStart=/home/ubuntu/app/main
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

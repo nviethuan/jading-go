@@ -7,7 +7,7 @@ COPY . .
 ARG VERSION=dev
 ARG COMMIT=none
 ARG BUILDTIME=unknown
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
     go build -ldflags "-s -w -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILDTIME}" \
     -o /app/main .
 

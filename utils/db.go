@@ -1,8 +1,6 @@
 package utils
 
 import (
-	// "path/filepath"
-
 	"os"
 
 	"github.com/nviethuan/jading-go/models"
@@ -22,6 +20,7 @@ func init() {
 	}
 	dbPathAccount := home + "/app/data/accounts.db"
 	dbPathStackTrade := home + "/app/data/stack_trade.db"
+
 	dbAccount, err = gorm.Open(sqlite.Open(dbPathAccount), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
