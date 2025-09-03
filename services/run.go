@@ -85,7 +85,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// ------
 
 		// buy #########################################################
-		buyChan := binanceClient.Buy(account.Symbol, quantity, askPrice, "LIMIT")
+		buyChan := binanceClient.Buy(account, quantity, askPrice, "LIMIT")
 		buyResponse := <-buyChan
 		// --- #########################################################
 
@@ -163,7 +163,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 				purpose = "`stoploss`"
 			}
 
-			sellChan := binanceClient.Sell(account.Symbol, stackTrade.Quantity, bidPrice, "LIMIT")
+			sellChan := binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT")
 			sellResponse := <-sellChan
 
 			quantityEarn, _ := strconv.ParseFloat(sellResponse.OrigQty, 64)
@@ -172,7 +172,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			withdrawQuantity := account.MaxWithdraw - (usdtBalance + quantityEarn)
 
 			if shouldWithdraw {
-				<-binanceClient.Withdraw("USDT", withdrawQuantity)
+				<-binanceClient.Withdraw(account, "USDT", withdrawQuantity)
 			}
 
 			stackTrade.Status = "SELL"
@@ -261,15 +261,11 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 			fmt.Printf("%s %s - STOP! Account is not actived\n", t, symbol)
 			return
 		}
-		// -----------
-
-		// init binance client with account
-		binanceClient.NewBinanceAPI(account)
 		// ------------
 
 		// get account info and candlestick data
-		accountInfoChan := binanceClient.AccountInfo()
-		candlestickDataChan := binanceClient.CandlestickData(symbol, "15m")
+		accountInfoChan := binanceClient.AccountInfo(account)
+		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "15m")
 
 		if accountInfoChan == nil {
 			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)

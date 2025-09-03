@@ -10,7 +10,7 @@ import (
 )
 
 type Binance struct {
-	client                *binance.Client
+	clients               map[string]*binance.Client
 	websocketAPIClient    *binance.WebsocketAPIClient
 	websocketStreamClient *binance.WebsocketStreamClient
 }
@@ -22,12 +22,16 @@ func (b *Binance) NewBinanceWSClientAPI(account *models.Account) *Binance {
 	return b
 }
 
-func (b *Binance) NewBinanceAPI(account *models.Account) *Binance {
-	if b.client == nil {
-		client := binance.NewClient(account.ApiKey, account.ApiSecret, account.RestApi)
-		b.client = client
+func (b *Binance) NewBinanceAPI(account *models.Account) *binance.Client {
+	k := account.Symbol + account.Network
+
+	client, ok := b.clients[k]
+	if !ok {
+		client = binance.NewClient(account.ApiKey, account.ApiSecret, account.RestApi)
+		b.clients[k] = client
 	}
-	return b
+
+	return client
 }
 
 func (b *Binance) NewBinanceStreamClient() *Binance {
@@ -37,12 +41,14 @@ func (b *Binance) NewBinanceStreamClient() *Binance {
 	return b
 }
 
-func (b *Binance) AccountInfo() chan *binance.AccountResponse {
+func (b *Binance) AccountInfo(account *models.Account) chan *binance.AccountResponse {
 	accountInfo := make(chan *binance.AccountResponse, 1)
 	go func() {
 		defer close(accountInfo)
 
-		response, err := b.client.NewGetAccountService().Do(context.Background(), binance.WithRecvWindow(10000))
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewGetAccountService().Do(context.Background(), binance.WithRecvWindow(10000))
 		if err != nil {
 			accountInfo <- nil
 			return
@@ -67,12 +73,14 @@ func (b *Binance) AccountInfo() chan *binance.AccountResponse {
 	return accountInfo
 }
 
-func (b *Binance) TradeFee(ctx context.Context, symbol string) chan []*binance.TradeFeeResponse {
+func (b *Binance) TradeFee(ctx context.Context, symbol string, account *models.Account) chan []*binance.TradeFeeResponse {
 	tradeFee := make(chan []*binance.TradeFeeResponse, 1)
 	go func() {
 		defer close(tradeFee)
 
-		response, err := b.client.NewTradeFeeService().Symbol(symbol).Do(ctx)
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewTradeFeeService().Symbol(symbol).Do(ctx)
 		if err != nil {
 			tradeFee <- []*binance.TradeFeeResponse{}
 			return
@@ -84,17 +92,19 @@ func (b *Binance) TradeFee(ctx context.Context, symbol string) chan []*binance.T
 	return tradeFee
 }
 
-func (b *Binance) AccountInfoWithContext(ctx context.Context) chan binance.AccountResponse {
+func (b *Binance) AccountInfoWithContext(ctx context.Context, account *models.Account) chan binance.AccountResponse {
 	accountInfo := make(chan binance.AccountResponse, 1)
 	go func() {
 		defer close(accountInfo)
+
+		client := b.NewBinanceAPI(account)
 
 		// Tạo một channel để nhận kết quả từ API
 		resultCh := make(chan *binance.AccountResponse, 1)
 		errCh := make(chan error, 1)
 
 		go func() {
-			response, err := b.client.NewGetAccountService().Do(ctx, binance.WithRecvWindow(10000))
+			response, err := client.NewGetAccountService().Do(ctx, binance.WithRecvWindow(10000))
 			if err != nil {
 				errCh <- err
 				return
@@ -129,12 +139,14 @@ func (b *Binance) AccountInfoWithContext(ctx context.Context) chan binance.Accou
 	return accountInfo
 }
 
-func (b *Binance) CandlestickData(symbol string, interval string) chan []*binance.KlinesResponse {
+func (b *Binance) CandlestickData(account *models.Account, symbol string, interval string) chan []*binance.KlinesResponse {
 	candlestickData := make(chan []*binance.KlinesResponse, 1)
 	go func() {
 		defer close(candlestickData)
 
-		response, err := b.client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(5).Do(context.Background())
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(5).Do(context.Background())
 		if err != nil {
 			candlestickData <- nil
 			return
@@ -146,12 +158,14 @@ func (b *Binance) CandlestickData(symbol string, interval string) chan []*binanc
 	return candlestickData
 }
 
-func (b *Binance) SymbolPriceTicker(symbol string) chan []*binance.TickerPriceResponse {
+func (b *Binance) SymbolPriceTicker(symbol string, account *models.Account) chan []*binance.TickerPriceResponse {
 	symbolPriceTicker := make(chan []*binance.TickerPriceResponse, 1)
 	go func() {
 		defer close(symbolPriceTicker)
 
-		response, err := b.client.NewTickerPriceService().Symbol(symbol).Do(context.Background())
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewTickerPriceService().Symbol(symbol).Do(context.Background())
 		if err != nil {
 			symbolPriceTicker <- nil
 			return
@@ -163,12 +177,14 @@ func (b *Binance) SymbolPriceTicker(symbol string) chan []*binance.TickerPriceRe
 	return symbolPriceTicker
 }
 
-func (b *Binance) order(symbol string, side string, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
+func (b *Binance) order(account *models.Account, symbol string, side string, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
 	order := make(chan binance.CreateOrderResponseFULL, 1)
 	go func() {
 		defer close(order)
 
-		response, err := b.client.NewCreateOrderService().
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewCreateOrderService().
 			Symbol(symbol).
 			Side(side).
 			Type(t).
@@ -195,20 +211,22 @@ func (b *Binance) order(symbol string, side string, quantity float64, price floa
 	return order
 }
 
-func (b *Binance) Buy(symbol string, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
-	return b.order(symbol, "BUY", quantity, price, t)
+func (b *Binance) Buy(account *models.Account, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
+	return b.order(account, account.Symbol, "BUY", quantity, price, t)
 }
 
-func (b *Binance) Sell(symbol string, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
-	return b.order(symbol, "SELL", quantity, price, t)
+func (b *Binance) Sell(account *models.Account, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
+	return b.order(account, account.Symbol, "SELL", quantity, price, t)
 }
 
-func (b *Binance) Withdraw(asset string, quantity float64) chan binance.TransferToMasterResp {
+func (b *Binance) Withdraw(account *models.Account, asset string, quantity float64) chan binance.TransferToMasterResp {
 	withdraw := make(chan binance.TransferToMasterResp, 1)
 	go func() {
 		defer close(withdraw)
 
-		response, err := b.client.NewTransferToMasterService().
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewTransferToMasterService().
 			Asset(asset).
 			Amount(quantity).
 			Do(context.Background(), binance.WithRecvWindow(10000))
