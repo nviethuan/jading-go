@@ -55,7 +55,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// ------------
 
 	// combine all conditions
-	shouldBuy := isDownTrend && isEnoughUsdtBalance
+	shouldBuy := isDownTrend && isEnoughUsdtBalance && usdtBalance > 8.0
 
 	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s Should Buy: %t\n%s isDownTrend: %t\n%s isEnoughUsdtBalance: %t\n",
 		// OLD
