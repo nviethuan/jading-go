@@ -57,7 +57,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// combine all conditions
 	shouldBuy := isDownTrend && isEnoughUsdtBalance && usdtBalance > 8.0
 
-	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s Should Buy: %t\n%s isDownTrend: %t\n%s isEnoughUsdtBalance: %t\n",
+	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s isEnoughUsdtBalance: %t\n%s Should Buy: %t\n",
 		// OLD
 		prefixLog,
 		oldPrice,
@@ -71,11 +71,11 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		askValue,
 
 		prefixLog,
-		shouldBuy,
-		prefixLog,
 		isDownTrend,
 		prefixLog,
 		isEnoughUsdtBalance,
+		prefixLog,
+		shouldBuy,
 	)
 	if isDownTrend && isEnoughUsdtBalance {
 		// calculate the quantity we want to buy
@@ -125,7 +125,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// (price_sell <= ? OR price_buy >= ?)
 		repositories.NewStackTradeRepository().Create(models.StackTrade{
 			Symbol:    account.Symbol,
-			Quantity:  utils.FloorTo(quantity * (1 - account.Fee), int(account.StepSize)),
+			Quantity:  utils.FloorTo(quantity*(1-account.Fee), int(account.StepSize)),
 			PriceBuy:  askPrice,
 			PriceSell: priceSell,
 			ThreadID:  ts,
@@ -167,8 +167,8 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 			quantityEarn, _ := strconv.ParseFloat(sellResponse.OrigQty, 64)
 
-			shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw
-			withdrawQuantity := account.MaxWithdraw - (usdtBalance + quantityEarn)
+			shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw+account.InitialInvestment
+			withdrawQuantity := account.MaxWithdraw - (usdtBalance + account.InitialInvestment)
 
 			if shouldWithdraw {
 				<-binanceClient.Withdraw(account, "USDT", withdrawQuantity)
