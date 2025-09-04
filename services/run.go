@@ -125,7 +125,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// (price_sell <= ? OR price_buy >= ?)
 		repositories.NewStackTradeRepository().Create(models.StackTrade{
 			Symbol:    account.Symbol,
-			Quantity:  quantity,
+			Quantity:  utils.FloorTo(quantity * (1 - account.Fee), int(account.StepSize)),
 			PriceBuy:  askPrice,
 			PriceSell: priceSell,
 			ThreadID:  ts,
@@ -155,7 +155,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 		if len(stackTrades) > 0 {
 			stackTrade := stackTrades[0]
-			isStopLoss = stackTrade.PriceBuy * (1-account.StopLoss) >= bidPrice
+			isStopLoss = stackTrade.PriceBuy*(1-account.StopLoss) >= bidPrice
 
 			purpose := "*sell*"
 			if isStopLoss {
