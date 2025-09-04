@@ -9,6 +9,8 @@ import (
 	"github.com/nviethuan/jading-go/models"
 )
 
+var clients = make(map[string]*binance.Client)
+
 type Binance struct {
 	clients               map[string]*binance.Client
 	websocketAPIClient    *binance.WebsocketAPIClient
@@ -25,10 +27,10 @@ func (b *Binance) NewBinanceWSClientAPI(account *models.Account) *Binance {
 func (b *Binance) NewBinanceAPI(account *models.Account) *binance.Client {
 	k := account.Symbol + account.Network
 
-	client, ok := b.clients[k]
+	client, ok := clients[k]
 	if !ok {
 		client = binance.NewClient(account.ApiKey, account.ApiSecret, account.RestApi)
-		b.clients[k] = client
+		clients[k] = client
 	}
 
 	return client
