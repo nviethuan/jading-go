@@ -17,10 +17,10 @@ lint:
 test:
 	go test ./... -cover -race
 
-build:
+build_arm:
 	CGO_ENABLED=1 go build -ldflags "-s -w -X main.Version=$(VERSION) -X main.Commit=$(COMMIT) -X main.BuildTime=$(BUILDTIME)" -o $(BIN) $(PKG)
 
-build_amd:
+build:
 	./scripts/build.sh
 
 clean:

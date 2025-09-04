@@ -39,8 +39,11 @@ func (s *StackTradeRepository) FindAll() []models.StackTrade {
 	return stackTrades
 }
 
-func (s *StackTradeRepository) FindBySymbol(symbol string, status string, priceSell float64, quantity float64, stopLoss float64) []*models.StackTrade {
+func (s *StackTradeRepository) FindBySymbol(symbol string, status string, priceSell float64, quantity float64, stopLoss float64, currentPrice float64) []*models.StackTrade {
 	var stackTrades []*models.StackTrade
-	s.db.Order("created_at DESC").Where("symbol = ? AND status = ? AND quantity <= ? AND (price_sell <= ? OR price_buy >= ?)", symbol, status, quantity, priceSell, stopLoss).Limit(1).Find(&stackTrades)
+	s.db.Order("created_at DESC").Where(
+		"symbol = ? AND status = ? AND quantity <= ? AND (price_sell <= ? OR (price_buy * (1 - ?) >= ?))",
+		symbol, status, quantity, priceSell, stopLoss, currentPrice,
+	).Limit(1).Find(&stackTrades)
 	return stackTrades
 }

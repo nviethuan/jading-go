@@ -28,7 +28,6 @@ func TestFindBySymbol(t *testing.T) {
 		PriceBuy:  50000,
 		Quantity:  0.1,
 		PriceSell: 51000,
-		StopLoss:  50500, // cập nhật stoploss khác với priceSell
 		ThreadID:  "thread1",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -39,7 +38,6 @@ func TestFindBySymbol(t *testing.T) {
 		PriceBuy:  50000,
 		Quantity:  0.2,
 		PriceSell: 52000,
-		StopLoss:  51500, // cập nhật stoploss khác với priceSell
 		ThreadID:  "thread2",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -50,7 +48,6 @@ func TestFindBySymbol(t *testing.T) {
 		PriceBuy:  3000,
 		Quantity:  1,
 		PriceSell: 3200,
-		StopLoss:  3100, // cập nhật stoploss khác với priceSell
 		ThreadID:  "thread3",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -61,7 +58,7 @@ func TestFindBySymbol(t *testing.T) {
 	repo.Create(stackTrade3)
 
 	// Test tìm kiếm với symbol, status, priceSell, quantity phù hợp
-	results := repo.FindBySymbol("BTCUSDT", "BUY", 52000, 0.2, 0.1)
+	results := repo.FindBySymbol("BTCUSDT", "BUY", 52000, 0.2, 0.1, 52000)
 
 	b, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
@@ -75,7 +72,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với điều kiện priceSell nhỏ hơn
-	results2 := repo.FindBySymbol("BTCUSDT", "BUY", 51000, 0.2, 0.1)
+	results2 := repo.FindBySymbol("BTCUSDT", "BUY", 51000, 0.2, 0.1, 51000)
 	b, err = json.MarshalIndent(results2, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)
@@ -87,7 +84,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với stoploss lớn hơn priceSell (case stoploss)
-	resultsStopLoss := repo.FindBySymbol("BTCUSDT", "BUY", 50000, 0.2, 0.1)
+	resultsStopLoss := repo.FindBySymbol("BTCUSDT", "BUY", 50000, 0.2, 0.1, 50000)
 	b, err = json.MarshalIndent(resultsStopLoss, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)
@@ -99,7 +96,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với symbol không tồn tại
-	results3 := repo.FindBySymbol("BNBUSDT", "BUY", 1000, 1, 0.1)
+	results3 := repo.FindBySymbol("BNBUSDT", "BUY", 1000, 1, 0.1, 1000)
 	b, err = json.MarshalIndent(results3, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)

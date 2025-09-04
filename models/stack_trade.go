@@ -14,8 +14,6 @@ type StackTrade struct {
 	PriceSell float64 `gorm:"index:symbol_for_search_2025_08_23;not null;"`
 	PriceBuy  float64 `gorm:"index:symbol_for_search_2025_08_23;not null"`
 	Quantity  float64 `gorm:"index:symbol_for_search_2025_08_23;not null"`
-	// Use for case we want to re-calculate the price sell
-	StopLoss  float64 `gorm:"not null"`
 	ThreadID  string
 	CreatedAt time.Time
 	UpdatedAt time.Time

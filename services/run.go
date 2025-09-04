@@ -20,7 +20,7 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, candles *[]*binance.KlinesResponse) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
 	prefixLog := fmt.Sprintf("%s BUY %s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
@@ -38,7 +38,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	ask := (*asks)[0]
 
 	oldPrice, _ := strconv.ParseFloat(oldestCandle.Open, 64)
-	oldTime := time.UnixMilli(int64(oldestCandle.OpenTime)).Format("2006-01-02 15:04:05")
+	oldTime := time.UnixMilli(int64(oldestCandle.OpenTime)).In(loc).Format("2006-01-02 15:04:05")
 	askPrice, _ := strconv.ParseFloat(ask.Price, 64)
 	askValue, _ := strconv.ParseFloat(ask.Quantity, 64)
 
@@ -118,7 +118,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// create stack trade
 		ts := <-tsChan
 
-		priceSell := usdtBalance / (quantity * (1 - account.Fee) * (1 + account.Profit))
+		priceSell := askPrice * (1 + account.Profit) / math.Pow(1-account.Fee, 2)
 
 		now := time.Now()
 
@@ -148,15 +148,14 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 		bidPrice, _ := strconv.ParseFloat(bid.Price, 64)
 		bidValue, _ := strconv.ParseFloat(bid.Quantity, 64)
 
-		stopLoss := bidPrice * (1 - account.StopLoss)
-
 		b70 := bidValue * 0.7
 
-		stackTrades := repositories.NewStackTradeRepository().FindBySymbol(account.Symbol, "BUY", bidPrice, b70, stopLoss)
+		stackTrades := repositories.NewStackTradeRepository().FindBySymbol(account.Symbol, "BUY", bidPrice, b70, account.StopLoss, bidPrice)
+		var isStopLoss bool
 
 		if len(stackTrades) > 0 {
 			stackTrade := stackTrades[0]
-			isStopLoss := stackTrade.PriceBuy >= stopLoss
+			isStopLoss = stackTrade.PriceBuy * (1-account.StopLoss) >= bidPrice
 
 			purpose := "*sell*"
 			if isStopLoss {
@@ -222,7 +221,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			return
 		}
 
-		fmt.Printf("%s No stack trade found\n%s Bid price: %f\n%s Bid value: %f\n%s BID 70: %f\n%s STOP LOSS: %f\n\n",
+		fmt.Printf("%s No stack trade found\n%s Bid price: %f\n%s Bid value: %f\n%s BID 70: %f\n%s STOP LOSS: %t - %f\n\n",
 			prefixLog,
 			// BID
 			prefixLog,
@@ -236,7 +235,8 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 			// STOP LOSS
 			prefixLog,
-			stopLoss, // STOP LOSS
+			isStopLoss,
+			bidPrice, // STOP LOSS
 		)
 	}
 	fmt.Println(prefixLog + "Process Sell DONE!=======")
@@ -298,7 +298,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, &candles)
+			processBuy(t, account, asks, usdtBalance, &candles, loc)
 		}()
 		go func() {
 			defer wg.Done()
