@@ -20,7 +20,7 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
 	prefixLog := fmt.Sprintf("%s BUY %s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
@@ -50,14 +50,13 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// check if the 70% of the quantity they want to sell
 	// is available based on the amount we bought
 	onSellValue := (askValue * askPrice) * 0.7
-	quantity := usdtBalance / askPrice
-	isEnoughUsdtBalance := quantity <= onSellValue
+	quantity := math.Min(usdtBalance/askPrice, onSellValue)
 	// ------------
 
 	// combine all conditions
-	shouldBuy := isDownTrend && isEnoughUsdtBalance && usdtBalance > 8.0
+	shouldBuy := isDownTrend && usdtBalance > 8.0
 
-	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s isEnoughUsdtBalance: %t\n%s Should Buy: %t\n",
+	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s Should Buy: %t\n",
 		// OLD
 		prefixLog,
 		oldPrice,
@@ -73,11 +72,9 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		prefixLog,
 		isDownTrend,
 		prefixLog,
-		isEnoughUsdtBalance,
-		prefixLog,
 		shouldBuy,
 	)
-	if isDownTrend && isEnoughUsdtBalance {
+	if shouldBuy {
 		// calculate the quantity we want to buy
 		quantity = utils.FloorTo(quantity, int(account.StepSize))
 
@@ -122,10 +119,16 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 		now := time.Now()
 
+		quantity4Sell := quantity
+
+		if baseBalance < account.Fee {
+			quantity4Sell = utils.FloorTo(quantity, int(account.StepSize))
+		}
+
 		// (price_sell <= ? OR price_buy >= ?)
 		repositories.NewStackTradeRepository().Create(models.StackTrade{
 			Symbol:    account.Symbol,
-			Quantity:  utils.FloorTo(quantity*(1-account.Fee), int(account.StepSize)),
+			Quantity:  quantity4Sell,
 			PriceBuy:  askPrice,
 			PriceSell: priceSell,
 			ThreadID:  ts,
@@ -290,22 +293,39 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 
 		// take my usdt balance and my base balance
 		usdtBalance := 0.0
+		baseBalance := 0.0
+		wgBalance := sync.WaitGroup{}
+		wgBalance.Add(2)
 
 		// get usdt balance
-		for _, balance := range accountInfo.Balances {
-			if balance.Asset == "USDT" {
-				num, _ := strconv.ParseFloat(balance.Free, 64)
-				usdtBalance = num
-				break
+		go func() {
+			defer wgBalance.Done()
+			for _, balance := range accountInfo.Balances {
+				if balance.Asset == "USDT" {
+					num, _ := strconv.ParseFloat(balance.Free, 64)
+					usdtBalance = num
+					break
+				}
 			}
-		}
+		}()
+		go func() {
+			defer wgBalance.Done()
+			for _, balance := range accountInfo.Balances {
+				if balance.Asset == account.Base {
+					num, _ := strconv.ParseFloat(balance.Free, 64)
+					baseBalance = num
+					break
+				}
+			}
+		}()
+		wgBalance.Wait()
 		// ------------
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, &candles, loc)
+			processBuy(t, account, asks, usdtBalance, baseBalance, &candles, loc)
 		}()
 		go func() {
 			defer wg.Done()

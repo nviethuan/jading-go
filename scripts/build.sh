@@ -8,4 +8,4 @@ docker cp my-container:/out/main ./
 docker rm my-container
 docker rmi my-app
 
-scp ~/Sources/mine-project/jading-go/main ubuntu@52.221.192.195:/home/ubuntu/app/main
+scp ~/Sources/mine-project/jading-go/main ubuntu@$JADINGIP:/home/ubuntu/app/main
