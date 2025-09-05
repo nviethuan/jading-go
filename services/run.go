@@ -135,6 +135,13 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		})
 		// ------------
 
+		titlePriceShouldSell := fmt.Sprintf("💰 Price should sell: %f", priceSell)
+		msgPriceShouldSell := fmt.Sprintf("💰 *Price should sell*: `%f`", priceSell)
+		bodyTextPriceShouldSell := slack.NewTextBlockObject("mrkdwn", msgPriceShouldSell, false, true)
+		bodyBlockPriceShouldSell := slack.NewSectionBlock(bodyTextPriceShouldSell, nil, nil)
+		blocksPriceShouldSell := []slack.Block{bodyBlockPriceShouldSell}
+		<-slackClient.SendInfo(titlePriceShouldSell, ts, blocksPriceShouldSell...)
+
 		return
 	}
 	fmt.Println(prefixLog + "Process Buy DONE! =======")
@@ -216,7 +223,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 				blocks = append(blocks, bodyBlock2)
 			}
 
-			<-slackClient.SendInfo(title, "", blocks...)
+			<-slackClient.SendInfo(title, stackTrade.ThreadID, blocks...)
 
 			return
 		}

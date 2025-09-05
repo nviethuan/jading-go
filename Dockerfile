@@ -4,7 +4,7 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-ARG VERSION=dev
+ARG VERSION=dev-$(date)
 ARG COMMIT=none
 ARG BUILDTIME=unknown
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
