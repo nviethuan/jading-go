@@ -1,32 +1,26 @@
 package main
 
-// import (
-// 	"context"
-// 	"log"
-// 	"os"
+import (
+	"flag"
+	"fmt"
+	"os"
+	"os/exec"
+)
 
-// 	"github.com/nviethuan/jading-go/utils"
+func main() {
+	var key string
+	flag.StringVar(&key, "f", "", "f")
+	flag.Parse()
+	cmd := exec.Command("./ss3", "-key", key)
 
-// 	binance "github.com/binance/binance-connector-go"
-// )
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-// func getExchangeInfo() {
-// 	client := utils.NewBinanceAPI(os.Getenv("BINANCE_API_KEY"), os.Getenv("BINANCE_SECRET_KEY"), os.Getenv("BINANCE_BASE_URL"))
-// 	exchangeInfo, err := client.NewExchangeInfoService().Symbol("BTCUSDT").Do(context.Background())
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
+	err := cmd.Start()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
 
-// 	data := []byte(binance.PrettyPrint(exchangeInfo))
-
-// 	err = os.WriteFile("exchange_info.json", data, 0644)
-// 	if err != nil {
-// 		log.Fatal("Không thể ghi file:", err)
-// 	}
-
-// 	log.Println(binance.PrettyPrint(exchangeInfo))
-// }
-
-// func main() {
-// 	getExchangeInfo()
-// }
+	fmt.Println("Process started, PID:", cmd.Process.Pid)
+}

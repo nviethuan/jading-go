@@ -23,6 +23,12 @@ build_arm:
 build:
 	./scripts/build.sh
 
+build_sync_s3:
+	./scripts/build-sync-s3.sh
+
+build_check:
+	./scripts/build-check.sh
+
 clean:
 	rm -rf bin
 
