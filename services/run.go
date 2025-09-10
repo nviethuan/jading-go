@@ -437,7 +437,7 @@ func Run() {
 		symbolAndNetworkStr = *str
 	}
 
-	websocketStreamClient := binance.NewWebsocketStreamClient(false, "wss://stream.testnet.binance.vision")
+	websocketStreamClient := binance.NewWebsocketStreamClient(false)
 
 	symbolsAndNetworks := strings.Split(symbolAndNetworkStr, ",")
 
