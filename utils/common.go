@@ -40,3 +40,17 @@ func FloorTo(x float64, decimals int) float64 {
 	pow := math.Pow(10, float64(decimals))
 	return math.Floor(x*pow) / pow
 }
+
+func Sum(values []float64) float64 {
+	sum := 0.0
+	for _, value := range values {
+		sum += value
+	}
+	return sum
+}
+
+
+func Average(values []float64) float64 {
+	sum := Sum(values)
+	return sum / float64(len(values))
+}

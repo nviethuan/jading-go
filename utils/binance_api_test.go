@@ -343,10 +343,15 @@ func TestBinance_CandlestickData(t *testing.T) {
 			Network:   "BSC",
 		}
 
-		candlestickChan := binanceClient.CandlestickData(account, "BTCUSDT", "1m")
+		candlestickChan := binanceClient.CandlestickData(account, "BTCUSDT", "1m", 5)
 
 		if candlestickChan == nil {
 			t.Error("Expected non-nil channel")
+		}
+
+		loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
+		if err != nil {
+			t.Error(err)
 		}
 
 		// Kiểm tra channel có thể nhận dữ liệu
@@ -354,6 +359,11 @@ func TestBinance_CandlestickData(t *testing.T) {
 		case candlestickData := <-candlestickChan:
 			// Với test API keys, có thể sẽ trả về nil hoặc error
 			if candlestickData != nil {
+				for _, candle := range candlestickData {
+					openTime := time.UnixMilli(int64(candle.OpenTime)).In(loc).Format("2006-01-02 15:04:05")
+					fmt.Println("Open Time: ", openTime)
+				}
+
 				fmt.Println(binance.PrettyPrint(candlestickData))
 			}
 		case <-time.After(5 * time.Second):
@@ -386,7 +396,7 @@ func TestBinance_CandlestickData(t *testing.T) {
 
 		for _, tc := range testCases {
 			t.Run(tc.symbol+"_"+tc.interval, func(t *testing.T) {
-				candlestickChan := binanceClient.CandlestickData(account, tc.symbol, tc.interval)
+				candlestickChan := binanceClient.CandlestickData(account, tc.symbol, tc.interval, 5)
 
 				if candlestickChan == nil {
 					t.Error("Expected non-nil channel")

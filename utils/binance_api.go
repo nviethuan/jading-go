@@ -141,14 +141,19 @@ func (b *Binance) AccountInfoWithContext(ctx context.Context, account *models.Ac
 	return accountInfo
 }
 
-func (b *Binance) CandlestickData(account *models.Account, symbol string, interval string) chan []*binance.KlinesResponse {
+/*
+OpenTime is increasing.
+
+Open Time: 2025-09-09 05:31:00, 2025-09-09 05:32:00, 2025-09-09 05:33:00, 2025-09-09 05:34:00, 2025-09-09 05:35:00
+*/
+func (b *Binance) CandlestickData(account *models.Account, symbol string, interval string, limit int) chan []*binance.KlinesResponse {
 	candlestickData := make(chan []*binance.KlinesResponse, 1)
 	go func() {
 		defer close(candlestickData)
 
 		client := b.NewBinanceAPI(account)
 
-		response, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(5).Do(context.Background())
+		response, err := client.NewKlinesService().Symbol(symbol).Interval(interval).Limit(limit).Do(context.Background())
 		if err != nil {
 			candlestickData <- nil
 			return

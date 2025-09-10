@@ -3,6 +3,7 @@ package services
 import (
 	"flag"
 	"fmt"
+	"log"
 	"math"
 	"os"
 	"strconv"
@@ -20,6 +21,33 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 
+func calculateRSI(candles *[]*binance.KlinesResponse) float64 {
+	ups := []float64{}
+	downs := []float64{}
+
+	rsi := 0.0
+
+	for i := 1; i < len(*candles); i++ {
+		prevClose, _ := strconv.ParseFloat((*candles)[i-1].Close, 64)
+		currClose, _ := strconv.ParseFloat((*candles)[i].Close, 64)
+		diff := currClose - prevClose
+
+		if diff > 0 {
+			ups = append(ups, diff)
+		} else {
+			downs = append(downs, math.Abs(diff))
+		}
+	}
+
+	avgUp := utils.Average(ups)
+	avgDown := utils.Average(downs)
+
+	rs := avgUp / avgDown
+	rsi = 100 - (100 / (1 + rs))
+
+	return rsi
+}
+
 func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
 	prefixLog := fmt.Sprintf("%s BUY %s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
@@ -27,24 +55,28 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// stop if we have sold all base balance and usdt balance is less than 8
 	hasSold := account.BaseBalance == 0
 	if usdtBalance < account.MinStopLoss && !hasSold {
-		fmt.Printf("%s STOP! USDT balance is less than 8 and base balance is 0\n", prefixLog)
+		fmt.Printf("%s STOP! USDT balance is less than 8 and base balance is not 0\n", prefixLog)
 		return
 	}
 	// ------------
 
 	// check downtrend
-	oldestCandle := (*candles)[0]
+	oldestCandle := ((*candles)[len(*candles)-5:])[0]
 	// get first sell order
 	ask := (*asks)[0]
 
-	oldPrice, _ := strconv.ParseFloat(oldestCandle.Open, 64)
-	oldTime := time.UnixMilli(int64(oldestCandle.OpenTime)).In(loc).Format("2006-01-02 15:04:05")
+	oldestPrice, _ := strconv.ParseFloat(oldestCandle.Open, 64)
+	oldestTime := time.UnixMilli(int64(oldestCandle.OpenTime)).In(loc).Format("2006-01-02 15:04:05")
 	askPrice, _ := strconv.ParseFloat(ask.Price, 64)
 	askValue, _ := strconv.ParseFloat(ask.Quantity, 64)
 
 	// take the open price of the oldest candle and compare it with the best ask price
 	// if the ask price drops more than the threshold (default: 0.015 ~ 1.5%) below the open price of the oldest candle, consider it a downtrend
-	isDownTrend := (oldPrice-askPrice)/oldPrice >= account.Threshold // ✅
+	isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
+	// ------------
+
+	// calculate RSI
+	rsi := calculateRSI(candles)
 	// ------------
 
 	// check if the 70% of the quantity they want to sell
@@ -54,14 +86,15 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// ------------
 
 	// combine all conditions
-	shouldBuy := isDownTrend && usdtBalance > 8.0
+	isRSIUnder30 := rsi < 30
+	shouldBuy := (isDownTrend || isRSIUnder30) && usdtBalance > 8.0
 
-	fmt.Printf("%s Old price: %f\n%s Old time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s Should Buy: %t\n",
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s RSI: %f (<30 - %t)\n %s Should Buy: %t\n",
 		// OLD
 		prefixLog,
-		oldPrice,
+		oldestPrice,
 		prefixLog,
-		oldTime,
+		oldestTime,
 
 		// ASK
 		prefixLog,
@@ -71,6 +104,9 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 		prefixLog,
 		isDownTrend,
+		prefixLog,
+		rsi,
+		isRSIUnder30,
 		prefixLog,
 		shouldBuy,
 	)
@@ -139,7 +175,12 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// ------------
 
 		titlePriceShouldSell := fmt.Sprintf("💰 Price should sell: %f", priceSell)
-		msgPriceShouldSell := fmt.Sprintf("💰 *Price should sell*: `%f`", priceSell)
+		msgPriceShouldSell := fmt.Sprintf("💰 *Price should sell by _down trend_*: `%f`", priceSell)
+
+		if isRSIUnder30 {
+			msgPriceShouldSell = fmt.Sprintf("💰 *Price should sell by _`RSI under 30`_*: `%f`", priceSell)
+		}
+
 		bodyTextPriceShouldSell := slack.NewTextBlockObject("mrkdwn", msgPriceShouldSell, false, true)
 		bodyBlockPriceShouldSell := slack.NewSectionBlock(bodyTextPriceShouldSell, nil, nil)
 		blocksPriceShouldSell := []slack.Block{bodyBlockPriceShouldSell}
@@ -275,7 +316,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 
 		// get account info and candlestick data
 		accountInfoChan := binanceClient.AccountInfo(account)
-		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "15m")
+		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "15m", 21)
 
 		if accountInfoChan == nil {
 			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)
@@ -367,12 +408,20 @@ func wsDepthHandlerTest() func(event *binance.WsPartialDepthEvent) {
 }
 
 func errHandler(err error) {
-	fmt.Println(err)
+	msg := fmt.Sprintf("Error: %v", err)
+
+	bodyText := slack.NewTextBlockObject("mrkdwn", msg, false, true)
+	errorBlock := []slack.Block{slack.NewSectionBlock(bodyText, nil, nil)}
+
+	slackClient.SendError("Error", "", errorBlock...)
+	time.Sleep(2 * time.Second)
+	log.Panic(err)
 }
 
 func Run() {
 	slackClient = &utils.SlackClient{}
 	slackClient.NewSlackClient()
+
 	symbolAndNetworkStr := os.Getenv("SYMBOL_AND_NETWORK")
 
 	if symbolAndNetworkStr == "" {
@@ -388,7 +437,7 @@ func Run() {
 		symbolAndNetworkStr = *str
 	}
 
-	websocketStreamClient := binance.NewWebsocketStreamClient(false)
+	websocketStreamClient := binance.NewWebsocketStreamClient(false, "wss://stream.testnet.binance.vision")
 
 	symbolsAndNetworks := strings.Split(symbolAndNetworkStr, ",")
 
@@ -397,6 +446,7 @@ func Run() {
 
 	for i, symbolAndNetwork := range symbolsAndNetworks {
 		symbolAndNetwork := strings.Split(symbolAndNetwork, ":")
+
 		if len(symbolAndNetwork) < 2 {
 			t := fmt.Sprintf("[%s]", time.Now().Format("2006-01-02 15:04:05"))
 			fmt.Printf("%s - STOP! Invalid symbol and network: %s\nSymbol should be like this: symbol1:network,symbol2:network\n", t, symbolAndNetwork)
@@ -410,7 +460,7 @@ func Run() {
 			defer wg.Done()
 			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(sym, net), errHandler)
 			if err != nil {
-				fmt.Println(err)
+				errHandler(err)
 				return
 			}
 			doneChs[idx] = doneCh
