@@ -132,11 +132,19 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 		// log to slack
 		title := fmt.Sprintf("💰 Buy %f (%s) with %f", quantity, strings.ToUpper(account.Base), askPrice)
-		msg := fmt.Sprintf(":%s: :dollar: [BUY] %f (%s) with price *%f* - order id: `%d`",
+
+		purpose := "by _*`down trend`*_"
+
+		if isRSIUnder30 {
+			purpose = "by _*`RSI under 30`*_"
+		}
+
+		msg := fmt.Sprintf(":%s: :dollar: [BUY] %f (%s) with price *%f* %s - order id: `%d`",
 			strings.ToLower(account.Symbol), // emoji
 			quantity,
 			strings.ToUpper(account.Base),
 			askPrice,
+			purpose,
 			buyResponse.OrderId,
 		)
 
@@ -171,11 +179,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// ------------
 
 		titlePriceShouldSell := fmt.Sprintf("💰 Price should sell: %f", priceSell)
-		msgPriceShouldSell := fmt.Sprintf("💰 *Price should sell by _down trend_*: `%f`", priceSell)
-
-		if isRSIUnder30 {
-			msgPriceShouldSell = fmt.Sprintf("💰 *Price should sell by _`RSI under 30`_*: `%f`", priceSell)
-		}
+		msgPriceShouldSell := fmt.Sprintf("💰 *Price should sell*: `%f`", priceSell)
 
 		bodyTextPriceShouldSell := slack.NewTextBlockObject("mrkdwn", msgPriceShouldSell, false, true)
 		bodyBlockPriceShouldSell := slack.NewSectionBlock(bodyTextPriceShouldSell, nil, nil)
