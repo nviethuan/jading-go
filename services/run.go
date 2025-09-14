@@ -79,12 +79,6 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	rsi := calculateRSI(candles)
 	// ------------
 
-	// check if the 70% of the quantity they want to sell
-	// is available based on the amount we bought
-	onSellValue := (askValue * askPrice) * 0.7
-	quantity := math.Min(usdtBalance/askPrice, onSellValue)
-	// ------------
-
 	// combine all conditions
 	isRSIUnder30 := rsi < 30
 	shouldBuy := (isDownTrend || isRSIUnder30) && usdtBalance > 8.0
@@ -110,7 +104,13 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		prefixLog,
 		shouldBuy,
 	)
+
 	if shouldBuy {
+		// check if the 70% of the quantity they want to sell
+		// is available based on the amount we bought
+		onSellValue := (askValue * askPrice) * 0.7
+		quantity := math.Min(usdtBalance/askPrice, onSellValue)
+		// ------------
 		// calculate the quantity we want to buy
 		quantity = utils.FloorTo(quantity, int(account.StepSize))
 
@@ -155,11 +155,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 		now := time.Now()
 
-		quantity4Sell := quantity
-
-		if baseBalance < account.Fee {
-			quantity4Sell = utils.FloorTo(quantity, int(account.StepSize))
-		}
+		quantity4Sell := utils.FloorTo((quantity+baseBalance)*(1-account.Fee), int(account.StepSize))
 
 		// (price_sell <= ? OR price_buy >= ?)
 		repositories.NewStackTradeRepository().Create(models.StackTrade{
