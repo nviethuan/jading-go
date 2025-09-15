@@ -72,7 +72,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 	// take the open price of the oldest candle and compare it with the best ask price
 	// if the ask price drops more than the threshold (default: 0.015 ~ 1.5%) below the open price of the oldest candle, consider it a downtrend
-	isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
+	// isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
 	// ------------
 
 	// calculate RSI
@@ -81,9 +81,9 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 	// combine all conditions
 	isRSIUnder30 := rsi < 30
-	shouldBuy := (isDownTrend || isRSIUnder30) && usdtBalance > 8.0
+	shouldBuy := isRSIUnder30 && usdtBalance > 8.0
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s isDownTrend: %t\n%s RSI: %f (<30 - %t)\n %s Should Buy: %t\n",
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n %s Should Buy: %t\n",
 		// OLD
 		prefixLog,
 		oldestPrice,
@@ -96,8 +96,6 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		prefixLog,
 		askValue,
 
-		prefixLog,
-		isDownTrend,
 		prefixLog,
 		rsi,
 		isRSIUnder30,
