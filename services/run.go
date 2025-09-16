@@ -49,7 +49,7 @@ func calculateRSI(candles *[]*binance.KlinesResponse) float64 {
 }
 
 func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
-	prefixLog := fmt.Sprintf("%s BUY %s: ", t, account.Symbol)
+	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
 	// stop if we have sold all base balance and usdt balance is less than 8
@@ -83,7 +83,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	isRSIUnder30 := rsi < 30
 	shouldBuy := isRSIUnder30 && usdtBalance > 8.0
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n %s Should Buy: %t\n",
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n %sShould Buy: %t\n",
 		// OLD
 		prefixLog,
 		oldestPrice,
@@ -190,7 +190,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 }
 
 func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
-	prefixLog := fmt.Sprintf("%s SELL %s: ", t, account.Symbol)
+	prefixLog := fmt.Sprintf("%s SELL_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Sell =======\n", prefixLog)
 	for i := len(*bids) - 1; i >= 0; i-- {
 		bid := (*bids)[i]
