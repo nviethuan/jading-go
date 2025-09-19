@@ -4,6 +4,8 @@ import (
 	"math"
 	"sync"
 	"time"
+
+	binance "github.com/binance/binance-connector-go"
 )
 
 func Debounce(f func(), delay time.Duration) func() {
@@ -49,8 +51,14 @@ func Sum(values []float64) float64 {
 	return sum
 }
 
-
 func Average(values []float64) float64 {
 	sum := Sum(values)
 	return sum / float64(len(values))
+}
+
+func ReverseBids(values []binance.Bid) []binance.Bid {
+	for i := 0; i < len(values)/2; i++ {
+		values[i], values[len(values)-i-1] = values[len(values)-i-1], values[i]
+	}
+	return values
 }

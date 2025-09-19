@@ -83,7 +83,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	isRSIUnder30 := rsi < 30
 	shouldBuy := isRSIUnder30 && usdtBalance > 8.0
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n %sShould Buy: %t\n",
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n",
 		// OLD
 		prefixLog,
 		oldestPrice,
@@ -368,7 +368,8 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		}()
 		go func() {
 			defer wg.Done()
-			processSell(t, account, bids, usdtBalance)
+			b := utils.ReverseBids(*bids)
+			processSell(t, account, &b, usdtBalance)
 		}()
 		wg.Wait()
 	}
@@ -456,7 +457,7 @@ func Run() {
 		wg.Add(1)
 		go func(idx int, sym string, net string) {
 			defer wg.Done()
-			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "10", wsDepthHandler(sym, net), errHandler)
+			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "20", wsDepthHandler(sym, net), errHandler)
 			if err != nil {
 				errHandler(err)
 				return
