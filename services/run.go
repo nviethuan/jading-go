@@ -80,7 +80,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// ------------
 
 	// combine all conditions
-	isRSIUnder30 := rsi < 30
+	isRSIUnder30 := rsi < 40
 	shouldBuy := isRSIUnder30 && usdtBalance > 8.0
 
 	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n",
@@ -237,7 +237,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			repositories.NewAccountRepository().Update(*account)
 
 			// log to slack
-			title := fmt.Sprintf("💰 Sell %f (%s) with %f", stackTrade.Quantity, strings.ToUpper(account.Base), bidPrice)
+			title := fmt.Sprintf("💰 Sell %f (%s) with %f\n - Balance: %f (USDT)", stackTrade.Quantity, strings.ToUpper(account.Base), bidPrice, quantityEarn)
 			msg := fmt.Sprintf(":%s: :dollar: [SELL] %f (%s) with price *%f* - order id: `%d`\nby %s",
 				strings.ToLower(account.Symbol), // emoji
 				stackTrade.Quantity,
