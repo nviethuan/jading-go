@@ -238,12 +238,12 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 			// log to slack
 			title := fmt.Sprintf("💰 Sell %f (%s) with %f\n - Balance: %f (USDT)", stackTrade.Quantity, strings.ToUpper(account.Base), bidPrice, quantityEarn)
-			msg := fmt.Sprintf(":%s: :dollar: [SELL] %f (%s) with price *%f* - order id: `%d`\nby %s",
+			msg := fmt.Sprintf(":%s: :dollar: [SELL] %f (%s) with price *%f* - Balance: %f (USDT)\nby %s",
 				strings.ToLower(account.Symbol), // emoji
 				stackTrade.Quantity,
 				strings.ToUpper(account.Base),
 				bidPrice,
-				stackTrade.ID,
+				quantityEarn,
 				purpose,
 			)
 
