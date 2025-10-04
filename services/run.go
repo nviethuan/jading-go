@@ -214,7 +214,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			sellChan := binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT")
 			sellResponse := <-sellChan
 
-			quantityEarn, _ := strconv.ParseFloat(sellResponse.OrigQty, 64)
+			quantityEarn, _ := strconv.ParseFloat(sellResponse.CummulativeQuoteQty, 64)
 
 			shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw+account.InitialInvestment
 			withdrawQuantity := account.MaxWithdraw - (usdtBalance + account.InitialInvestment)
