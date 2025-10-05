@@ -157,7 +157,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// create stack trade
 		ts := <-tsChan
 
-		priceSell := askPrice * (1 + account.Profit) / math.Pow(1-account.Fee, 2)
+		priceSell := askPrice * (1 + account.Profit) / (1-account.Fee)
 
 		now := time.Now()
 
