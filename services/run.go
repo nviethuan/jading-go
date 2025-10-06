@@ -157,7 +157,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		// create stack trade
 		ts := <-tsChan
 
-		priceSell := askPrice * (1 + account.Profit) / (1-account.Fee)
+		priceSell := askPrice * (1 + account.Profit) / math.Pow(1-account.Fee, 2)
 
 		now := time.Now()
 
@@ -217,7 +217,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			quantityEarn, _ := strconv.ParseFloat(sellResponse.CummulativeQuoteQty, 64)
 
 			shouldWithdraw := usdtBalance+quantityEarn > account.MaxWithdraw+account.InitialInvestment
-			withdrawQuantity := account.MaxWithdraw - (usdtBalance + account.InitialInvestment)
+			withdrawQuantity := account.InitialInvestment
 
 			if shouldWithdraw {
 				<-binanceClient.Withdraw(account, "USDT", withdrawQuantity)
