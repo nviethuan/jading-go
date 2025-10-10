@@ -20,9 +20,9 @@ type Account struct {
 	QuoteBalance float64 `json:"quote_balance"`
 	// Exchange fee: 0.001 = 0.1%
 	Fee float64 `json:"fee"`
-	// Profit: 0.01 = 1%
+	// Profit: 0.005 = 0.5%
 	Profit float64 `json:"profit"`
-	// Config stop loss and buy quantity: 0.08 = 8% of usdt balance
+	// Config stop loss and buy quantity: 0.15 = 15% of usdt balance
 	StopLoss float64 `json:"stop_loss"`
 	// Percentage to check downtrend: 0.015 = 1.5%
 	Threshold         float64 `gorm:"default:0.015" json:"threshold"`

@@ -368,8 +368,8 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		}()
 		go func() {
 			defer wg.Done()
-			b := utils.ReverseBids(*bids)
-			processSell(t, account, &b, usdtBalance)
+			// b := utils.ReverseBids(*bids)
+			processSell(t, account, bids, usdtBalance)
 		}()
 		wg.Wait()
 	}
