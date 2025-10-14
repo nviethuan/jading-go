@@ -58,7 +58,7 @@ func TestFindBySymbol(t *testing.T) {
 	repo.Create(stackTrade3)
 
 	// Test tìm kiếm với symbol, status, priceSell, quantity phù hợp
-	results := repo.FindBySymbol("BTCUSDT", "BUY", 52000, 0.2, 0.1, 52000)
+	results := repo.FindSymbol4Sell("BTCUSDT", "BUY", 52000, 0.2)
 
 	b, err := json.MarshalIndent(results, "", "  ")
 	if err != nil {
@@ -72,7 +72,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với điều kiện priceSell nhỏ hơn
-	results2 := repo.FindBySymbol("BTCUSDT", "BUY", 51000, 0.2, 0.1, 51000)
+	results2 := repo.FindSymbol4Sell("BTCUSDT", "BUY", 51000, 0.2)
 	b, err = json.MarshalIndent(results2, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)
@@ -84,7 +84,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với stoploss lớn hơn priceSell (case stoploss)
-	resultsStopLoss := repo.FindBySymbol("BTCUSDT", "BUY", 50000, 0.2, 0.1, 50000)
+	resultsStopLoss := repo.FindSymbol4Sell("BTCUSDT", "BUY", 50000, 0.2)
 	b, err = json.MarshalIndent(resultsStopLoss, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)
@@ -96,7 +96,7 @@ func TestFindBySymbol(t *testing.T) {
 	}
 
 	// Test tìm kiếm với symbol không tồn tại
-	results3 := repo.FindBySymbol("BNBUSDT", "BUY", 1000, 1, 0.1, 1000)
+	results3 := repo.FindSymbol4Sell("BNBUSDT", "BUY", 1000, 1)
 	b, err = json.MarshalIndent(results3, "", "  ")
 	if err != nil {
 		t.Errorf("Lỗi khi chuyển đổi kết quả sang JSON: %v", err)

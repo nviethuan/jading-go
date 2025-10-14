@@ -48,7 +48,7 @@ func calculateRSI(candles *[]*binance.KlinesResponse) float64 {
 	return rsi
 }
 
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, usdtBalanceLocked float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
@@ -81,10 +81,12 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 
 	// combine all conditions
 	isRSIUnder30 := rsi < 40
-	shouldBuy := isRSIUnder30 && usdtBalance > 8.0
+	acceptedMinStopLoss := 7.0
+	// Dùng Max(account.MinStopLoss, acceptedMinStopLoss) để không cho phép MinStopLoss nhỏ hơn 7
+	shouldBuy := isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n",
-		// OLD
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<40 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
+		// OLDEST
 		prefixLog,
 		oldestPrice,
 		prefixLog,
@@ -101,6 +103,8 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		isRSIUnder30,
 		prefixLog,
 		shouldBuy,
+		prefixLog,
+		usdtBalance,
 	)
 
 	if shouldBuy {
@@ -134,7 +138,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		purpose := "by _*`down trend`*_"
 
 		if isRSIUnder30 {
-			purpose = "by _*`RSI under 30`*_"
+			purpose = "by _*`RSI under 40`*_"
 		}
 
 		msg := fmt.Sprintf(":%s: :dollar: [BUY] %f (%s) with price *%f* %s - order id: `%d`",
@@ -189,6 +193,24 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	fmt.Println(prefixLog + "Process Buy DONE! =======")
 }
 
+func onPostSell(account *models.Account, usdtBalance float64) *models.Account {
+	stackTrades := repositories.NewStackTradeRepository().FindSymbolOnSell(account.Symbol)
+
+	totalBalance := usdtBalance
+
+	for _, stackTrade := range stackTrades {
+		totalBalance += stackTrade.Quantity * stackTrade.PriceSell
+	}
+
+	if totalBalance*0.1 > 30.0 {
+		account.MinStopLoss = totalBalance - 30.0
+	} else {
+		account.MinStopLoss = totalBalance * 0.9
+	}
+
+	return account
+}
+
 func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
 	prefixLog := fmt.Sprintf("%s SELL_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Sell =======\n", prefixLog)
@@ -199,7 +221,7 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 		b70 := bidValue * 0.7
 
-		stackTrades := repositories.NewStackTradeRepository().FindBySymbol(account.Symbol, "BUY", bidPrice, b70, account.StopLoss, bidPrice)
+		stackTrades := repositories.NewStackTradeRepository().FindSymbol4Sell(account.Symbol, "BUY", bidPrice, b70)
 		var isStopLoss bool
 
 		if len(stackTrades) > 0 {
@@ -233,6 +255,8 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 			account.BaseBalance = math.Max(0, account.BaseBalance-stackTrade.Quantity)
 			account.QuoteBalance = quoteBalance
+
+			account = onPostSell(account, usdtBalance+quantityEarn)
 
 			repositories.NewAccountRepository().Update(*account)
 
@@ -330,8 +354,9 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		candles := <-candlestickDataChan
 		// ------------
 
-		// take my usdt balance and my base balance
+		// usdtBalance only free USDT balance
 		usdtBalance := 0.0
+		usdtBalanceLocked := 0.0
 		baseBalance := 0.0
 		wgBalance := sync.WaitGroup{}
 		wgBalance.Add(2)
@@ -341,8 +366,8 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 			defer wgBalance.Done()
 			for _, balance := range accountInfo.Balances {
 				if balance.Asset == "USDT" {
-					num, _ := strconv.ParseFloat(balance.Free, 64)
-					usdtBalance = num
+					usdtBalance, _ = strconv.ParseFloat(balance.Free, 64)
+					usdtBalanceLocked, _ = strconv.ParseFloat(balance.Locked, 64)
 					break
 				}
 			}
@@ -364,7 +389,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, baseBalance, &candles, loc)
+			processBuy(t, account, asks, usdtBalance, usdtBalanceLocked, baseBalance, &candles, loc)
 		}()
 		go func() {
 			defer wg.Done()
