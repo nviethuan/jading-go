@@ -48,7 +48,7 @@ func calculateRSI(candles *[]*binance.KlinesResponse) float64 {
 	return rsi
 }
 
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, usdtBalanceLocked float64, baseBalance float64, candles *[]*binance.KlinesResponse, loc *time.Location) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, loc *time.Location) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
@@ -60,8 +60,16 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	}
 	// ------------
 
+	candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 21)
+	if candlestickDataChan == nil {
+		fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, account.Symbol)
+		return
+	}
+
+	candles := <-candlestickDataChan
+
 	// check downtrend
-	oldestCandle := ((*candles)[len(*candles)-5:])[0]
+	oldestCandle := candles[0]
 	// get first sell order
 	ask := (*asks)[0]
 
@@ -76,7 +84,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// ------------
 
 	// calculate RSI
-	rsi := calculateRSI(candles)
+	rsi := calculateRSI(&candles)
 	// ------------
 
 	// combine all conditions
@@ -338,25 +346,18 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 
 		// get account info and candlestick data
 		accountInfoChan := binanceClient.AccountInfo(account)
-		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "1m", 21)
 
 		if accountInfoChan == nil {
 			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)
 			return
 		}
 
-		if candlestickDataChan == nil {
-			fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, symbol)
-			return
-		}
 
 		accountInfo := <-accountInfoChan
-		candles := <-candlestickDataChan
 		// ------------
 
 		// usdtBalance only free USDT balance
 		usdtBalance := 0.0
-		usdtBalanceLocked := 0.0
 		baseBalance := 0.0
 		wgBalance := sync.WaitGroup{}
 		wgBalance.Add(2)
@@ -367,7 +368,6 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 			for _, balance := range accountInfo.Balances {
 				if balance.Asset == "USDT" {
 					usdtBalance, _ = strconv.ParseFloat(balance.Free, 64)
-					usdtBalanceLocked, _ = strconv.ParseFloat(balance.Locked, 64)
 					break
 				}
 			}
@@ -389,7 +389,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, usdtBalanceLocked, baseBalance, &candles, loc)
+			processBuy(t, account, asks, usdtBalance, baseBalance, loc)
 		}()
 		go func() {
 			defer wg.Done()
