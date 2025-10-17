@@ -338,7 +338,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 
 		// get account info and candlestick data
 		accountInfoChan := binanceClient.AccountInfo(account)
-		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "15m", 21)
+		candlestickDataChan := binanceClient.CandlestickData(account, symbol, "1m", 21)
 
 		if accountInfoChan == nil {
 			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)
