@@ -48,3 +48,6 @@ push:
 	  --build-arg COMMIT=$(COMMIT) \
 	  --build-arg BUILDTIME=$(BUILDTIME) \
 	  -t $(REGISTRY):$(VERSION) -t $(REGISTRY):latest -f Dockerfile .
+
+bk:
+	./scripts/backup.sh
