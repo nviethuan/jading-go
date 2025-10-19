@@ -60,7 +60,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	}
 	// ------------
 
-	candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 21)
+	candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 15)
 	if candlestickDataChan == nil {
 		fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, account.Symbol)
 		return
@@ -83,8 +83,11 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
 	// ------------
 
+	// should remove the newest candle because it's not closed yet
+	cds := candles[:len(candles)-1]
+
 	// calculate RSI
-	rsi := calculateRSI(&candles)
+	rsi := calculateRSI(&cds)
 	// ------------
 
 	// combine all conditions
@@ -351,7 +354,6 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 			fmt.Printf("%s %s - STOP! AccountInfo is not available\n", t, symbol)
 			return
 		}
-
 
 		accountInfo := <-accountInfoChan
 		// ------------
