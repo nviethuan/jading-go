@@ -83,7 +83,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
 	// ------------
 
-	// should remove the newest candle because it's not closed yet
+	// must remove the newest candle because it's not closed yet
 	cds := candles[:len(candles)-1]
 
 	// calculate RSI
