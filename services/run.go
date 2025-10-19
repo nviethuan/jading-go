@@ -88,12 +88,12 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// ------------
 
 	// combine all conditions
-	isRSIUnder30 := rsi < 40
+	isRSIUnder30 := rsi < 30
 	acceptedMinStopLoss := 7.0
 	// Dùng Max(account.MinStopLoss, acceptedMinStopLoss) để không cho phép MinStopLoss nhỏ hơn 7
 	shouldBuy := isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<40 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
+	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
 		// OLDEST
 		prefixLog,
 		oldestPrice,
@@ -146,7 +146,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		purpose := "by _*`down trend`*_"
 
 		if isRSIUnder30 {
-			purpose = "by _*`RSI under 40`*_"
+			purpose = "by _*`RSI under 30`*_"
 		}
 
 		msg := fmt.Sprintf(":%s: :dollar: [BUY] %f (%s) with price *%f* %s - order id: `%d`",
