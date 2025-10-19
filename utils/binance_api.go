@@ -218,6 +218,38 @@ func (b *Binance) order(account *models.Account, symbol string, side string, qua
 	return order
 }
 
+func (b * Binance) SellMarket(account *models.Account, quantity float64) chan binance.CreateOrderResponseFULL {
+	order := make(chan binance.CreateOrderResponseFULL, 1)
+	go func() {
+		defer close(order)
+
+		client := b.NewBinanceAPI(account)
+
+		response, err := client.NewCreateOrderService().
+			Symbol(account.Symbol).
+			Side("SELL").
+			Type("MARKET").
+			Quantity(quantity).
+			Do(context.Background(), binance.WithRecvWindow(10000))
+		if err != nil {
+			fmt.Println("[Binance] Error: ", err)
+			order <- binance.CreateOrderResponseFULL{}
+			return
+		}
+
+		orderResponse, ok := response.(*binance.CreateOrderResponseFULL)
+
+		if ok {
+			fmt.Println("[Binance] Order Response: ", orderResponse)
+			order <- *orderResponse
+		} else {
+			order <- binance.CreateOrderResponseFULL{}
+		}
+	}()
+
+	return order
+}
+
 func (b *Binance) Buy(account *models.Account, quantity float64, price float64, t string) chan binance.CreateOrderResponseFULL {
 	return b.order(account, account.Symbol, "BUY", quantity, price, t)
 }

@@ -26,6 +26,9 @@ build:
 build_sync_s3:
 	./scripts/build-sync-s3.sh
 
+build_sync_fsell:
+	./scripts/build-fsell.sh
+
 build_check:
 	./scripts/build-check.sh
 
