@@ -225,7 +225,8 @@ func onPostSell(account *models.Account, usdtBalance float64) *models.Account {
 func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
 	prefixLog := fmt.Sprintf("%s SELL_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Sell =======\n", prefixLog)
-	for i := len(*bids) - 1; i >= 0; i-- {
+	// Should 
+	for i := 0; i <= len(*bids) - 1; i++ {
 		bid := (*bids)[i]
 		bidPrice, _ := strconv.ParseFloat(bid.Price, 64)
 		bidValue, _ := strconv.ParseFloat(bid.Quantity, 64)
@@ -305,8 +306,9 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 			return
 		}
 
-		fmt.Printf("%s No stack trade found\n%s Bid price: %f\n%s Bid value: %f\n%s BID 70: %f\n%s STOP LOSS: %t - %f\n\n",
+		fmt.Printf("\n%s %d. No stack trade found\n%s Bid price: %f\n%s Bid value: %f\n%s BID 70: %f\n%s STOP LOSS: %t - %f\n\n",
 			prefixLog,
+			i,
 			// BID
 			prefixLog,
 			bidPrice,
