@@ -189,15 +189,11 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 				purpose = "`stoploss`"
 			}
 
-			sellChan := make(chan binance.CreateOrderResponseFULL, 1)
-
-			if RSI > 60 && !trendUp {
-				// #################################################################################
-				// ##                                   SELL                                      ##
-				sellChan = binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT") // ##
-				// ##                                                                             ##
-				// #################################################################################
-			}
+			// #################################################################################
+			// ##                                   SELL                                      ##
+			sellChan := binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT") // ##
+			// ##                                                                             ##
+			// #################################################################################
 
 			sellResponse := <-sellChan
 
