@@ -1,11 +1,12 @@
 module github.com/nviethuan/jading-go
 
-go 1.22.1
+go 1.23.2
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.3
 	github.com/binance/binance-connector-go v0.8.0
+	github.com/markcheno/go-talib v0.0.0-20250114000313-ec55a20c902f
 	github.com/slack-go/slack v0.17.3
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.1

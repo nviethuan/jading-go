@@ -12,6 +12,7 @@ import (
 	"time"
 
 	binance "github.com/binance/binance-connector-go"
+	"github.com/markcheno/go-talib"
 	"github.com/nviethuan/jading-go/models"
 	"github.com/nviethuan/jading-go/repositories"
 	"github.com/nviethuan/jading-go/utils"
@@ -21,88 +22,31 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 
-func calculateRSI(candles *[]*binance.KlinesResponse) float64 {
-	ups := []float64{}
-	downs := []float64{}
-
-	rsi := 0.0
-
-	for i := 1; i < len(*candles); i++ {
-		prevClose, _ := strconv.ParseFloat((*candles)[i-1].Close, 64)
-		currClose, _ := strconv.ParseFloat((*candles)[i].Close, 64)
-		diff := currClose - prevClose
-
-		if diff > 0 {
-			ups = append(ups, diff)
-		} else {
-			downs = append(downs, math.Abs(diff))
-		}
-	}
-
-	avgUp := utils.Average(ups)
-	avgDown := utils.Average(downs)
-
-	rs := avgUp / avgDown
-	rsi = 100 - (100 / (1 + rs))
-
-	return rsi
-}
-
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, loc *time.Location) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, RSI float64, trendUp bool) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
 	// stop if we have sold all base balance and usdt balance is less than 8
 	hasSold := account.BaseBalance == 0
 	if usdtBalance < account.MinStopLoss && !hasSold {
-		fmt.Printf("%s STOP! USDT balance is less than 8 and base balance is not 0\n", prefixLog)
+		fmt.Println(prefixLog, " STOP! USDT balance is less than 8 and base balance is not 0")
 		return
 	}
 	// ------------
 
-	candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 15)
-	if candlestickDataChan == nil {
-		fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, account.Symbol)
-		return
-	}
-
-	candles := <-candlestickDataChan
-
-	// check downtrend
-	oldestCandle := candles[0]
-	// get first sell order
 	ask := (*asks)[0]
 
-	oldestPrice, _ := strconv.ParseFloat(oldestCandle.Open, 64)
-	oldestTime := time.UnixMilli(int64(oldestCandle.OpenTime)).In(loc).Format("2006-01-02 15:04:05")
 	askPrice, _ := strconv.ParseFloat(ask.Price, 64)
 	askValue, _ := strconv.ParseFloat(ask.Quantity, 64)
-
-	// take the open price of the oldest candle and compare it with the best ask price
-	// if the ask price drops more than the threshold (default: 0.015 ~ 1.5%) below the open price of the oldest candle, consider it a downtrend
-	// isDownTrend := (oldestPrice-askPrice)/oldestPrice >= account.Threshold // ✅
-	// ------------
-
-	// must remove the newest candle because it's not closed yet
-	cds := candles[:len(candles)-1]
-
-	// calculate RSI
-	rsi := calculateRSI(&cds)
 	// ------------
 
 	// combine all conditions
-	isRSIUnder30 := rsi < 30
+	isRSIUnder30 := RSI < 30
 	acceptedMinStopLoss := 7.0
 	// Dùng Max(account.MinStopLoss, acceptedMinStopLoss) để không cho phép MinStopLoss nhỏ hơn 7
-	shouldBuy := isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
+	shouldBuy := trendUp && isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
 
-	fmt.Printf("%s Oldest price: %f\n%s Oldest time: %s\n%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
-		// OLDEST
-		prefixLog,
-		oldestPrice,
-		prefixLog,
-		oldestTime,
-
+	fmt.Printf("%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
 		// ASK
 		prefixLog,
 		askPrice,
@@ -110,7 +54,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		askValue,
 
 		prefixLog,
-		rsi,
+		RSI,
 		isRSIUnder30,
 		prefixLog,
 		shouldBuy,
@@ -222,11 +166,11 @@ func onPostSell(account *models.Account, usdtBalance float64) *models.Account {
 	return account
 }
 
-func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
+func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64, RSI float64, trendUp bool) {
 	prefixLog := fmt.Sprintf("%s SELL_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Sell =======\n", prefixLog)
-	// Should 
-	for i := 0; i <= len(*bids) - 1; i++ {
+	// Should
+	for i := 0; i <= len(*bids)-1; i++ {
 		bid := (*bids)[i]
 		bidPrice, _ := strconv.ParseFloat(bid.Price, 64)
 		bidValue, _ := strconv.ParseFloat(bid.Quantity, 64)
@@ -245,7 +189,16 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 				purpose = "`stoploss`"
 			}
 
-			sellChan := binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT")
+			sellChan := make(chan binance.CreateOrderResponseFULL, 1)
+
+			if RSI > 60 && !trendUp {
+				// #################################################################################
+				// ##                                   SELL                                      ##
+				sellChan = binanceClient.Sell(account, stackTrade.Quantity, bidPrice, "LIMIT") // ##
+				// ##                                                                             ##
+				// #################################################################################
+			}
+
 			sellResponse := <-sellChan
 
 			quantityEarn, _ := strconv.ParseFloat(sellResponse.CummulativeQuoteQty, 64)
@@ -349,7 +302,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		}
 		// ------------
 
-		// get account info and candlestick data
+		// get account info
 		accountInfoChan := binanceClient.AccountInfo(account)
 
 		if accountInfoChan == nil {
@@ -389,16 +342,65 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		wgBalance.Wait()
 		// ------------
 
+		candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 15)
+		candlestickDataChan5m := binanceClient.CandlestickData(account, account.Symbol, "5m", 201)
+
+		if candlestickDataChan == nil || candlestickDataChan5m == nil {
+			fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, account.Symbol)
+			return
+		}
+
+		candles := <-candlestickDataChan
+		candles5m := <-candlestickDataChan5m
+
+		candles = candles[:len(candles)-1]
+
+		candles5mLen := len(candles5m) - 1
+
+		candles5m50 := candles5m[candles5mLen-50 : candles5mLen]
+		candles5m200 := candles5m[:candles5mLen]
+
+		closes := make([]float64, len(candles))
+		for i, c := range candles {
+			closes[i], _ = strconv.ParseFloat(c.Close, 64)
+		}
+
+		closes5m50 := make([]float64, len(candles5m50))
+		for i, c := range candles5m50 {
+			closes5m50[i], _ = strconv.ParseFloat(c.Close, 64)
+		}
+
+		closes5m200 := make([]float64, len(candles5m200))
+		for i, c := range candles5m200 {
+			closes5m200[i], _ = strconv.ParseFloat(c.Close, 64)
+		}
+
+		rsi := talib.Rsi(closes, 13)
+		ema50 := talib.Ema(closes5m50, 50)
+		ema200 := talib.Ema(closes5m200, 200)
+
+		lastEMA50 := ema50[len(ema50)-1]
+		lastEMA200 := ema200[len(ema200)-1]
+
+		trendUp := lastEMA50 > lastEMA200
+
+		RSI := rsi[len(rsi)-1]
+
+		fmt.Println(t, " _INFO_ RSI: ", RSI)
+		fmt.Println(t, " _INFO_ EMA_50: ", lastEMA50)
+		fmt.Println(t, " _INFO_ EMA_200: ", lastEMA200)
+		fmt.Println(t, " _INFO_ is TrendUp (EMA_50 > EMA_200): ", trendUp)
+
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, baseBalance, loc)
+			processBuy(t, account, asks, usdtBalance, baseBalance, RSI, trendUp)
 		}()
 		go func() {
 			defer wg.Done()
 			// b := utils.ReverseBids(*bids)
-			processSell(t, account, bids, usdtBalance)
+			processSell(t, account, bids, usdtBalance, RSI, trendUp)
 		}()
 		wg.Wait()
 	}
@@ -407,7 +409,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 func wsDepthHandler(symbol string, network string) func(event *binance.WsPartialDepthEvent) {
 	bids := []binance.Bid{}
 	asks := []binance.Ask{}
-	throttled := utils.Throttle(start(symbol, network, &bids, &asks), 3*time.Second)
+	throttled := utils.Throttle(start(symbol, network, &bids, &asks), 5*time.Second)
 	return func(event *binance.WsPartialDepthEvent) {
 		bids = event.Bids
 		asks = event.Asks
