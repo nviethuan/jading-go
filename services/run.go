@@ -44,7 +44,7 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	isRSIUnder30 := RSI < 30
 	acceptedMinStopLoss := 7.0
 	// Dùng Max(account.MinStopLoss, acceptedMinStopLoss) để không cho phép MinStopLoss nhỏ hơn 7
-	shouldBuy := trendUp && isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
+	shouldBuy := !trendUp && isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
 
 	fmt.Printf("%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
 		// ASK
@@ -166,7 +166,7 @@ func onPostSell(account *models.Account, usdtBalance float64) *models.Account {
 	return account
 }
 
-func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64, RSI float64, trendUp bool) {
+func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBalance float64) {
 	prefixLog := fmt.Sprintf("%s SELL_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Sell =======\n", prefixLog)
 	// Should
@@ -396,7 +396,7 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		go func() {
 			defer wg.Done()
 			// b := utils.ReverseBids(*bids)
-			processSell(t, account, bids, usdtBalance, RSI, trendUp)
+			processSell(t, account, bids, usdtBalance)
 		}()
 		wg.Wait()
 	}
