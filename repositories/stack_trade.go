@@ -24,7 +24,10 @@ func (s *StackTradeRepository) Create(stackTrade models.StackTrade) models.Stack
 	stackTrade.CreatedAt = now
 	stackTrade.UpdatedAt = now
 	s.db.Create(&stackTrade)
-	exec.Command("ss3", "-key", "stack_trade.db").Start()
+
+	cmd := exec.Command("ss3", "-key", "stack_trade.db")
+	cmd.Run()
+
 	return stackTrade
 }
 
@@ -32,7 +35,9 @@ func (s *StackTradeRepository) Update(stackTrade models.StackTrade) models.Stack
 	now := time.Now()
 	stackTrade.UpdatedAt = now
 	s.db.Save(&stackTrade)
-	exec.Command("ss3", "-key", "stack_trade.db").Start()
+
+	cmd := exec.Command("ss3", "-key", "stack_trade.db")
+	cmd.Run()
 
 	return stackTrade
 }

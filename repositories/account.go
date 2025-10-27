@@ -47,7 +47,8 @@ func (a *AccountRepository) Create(account *models.Account) models.Account {
 	account.UpdatedAt = now
 
 	a.db.Create(&account)
-	exec.Command("ss3", "-key", "accounts.db").Start()
+	cmd := exec.Command("ss3", "-key", "accounts.db")
+	cmd.Run()
 	return *account
 }
 
@@ -56,12 +57,18 @@ func (a *AccountRepository) Update(account models.Account) models.Account {
 	account.UpdatedAt = now
 
 	a.db.Save(&account)
-	exec.Command("ss3", "-key", "accounts.db").Start()
+
+	cmd := exec.Command("ss3", "-key", "accounts.db")
+	cmd.Run()
+
 	return account
 }
 
 func (a *AccountRepository) Delete(account models.Account) models.Account {
 	a.db.Delete(&account)
-	exec.Command("ss3", "-key", "accounts.db").Start()
+
+	cmd := exec.Command("ss3", "-key", "accounts.db")
+	cmd.Run()
+
 	return account
 }
