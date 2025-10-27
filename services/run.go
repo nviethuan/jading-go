@@ -484,7 +484,7 @@ func Run() {
 		wg.Add(1)
 		go func(idx int, sym string, net string) {
 			defer wg.Done()
-			doneCh, _, err := websocketStreamClient.WsPartialDepthServe100Ms(sym, "20", wsDepthHandler(sym, net), errHandler)
+			doneCh, _, err := websocketStreamClient.WsPartialDepthServe(sym, "20", wsDepthHandler(sym, net), errHandler)
 			if err != nil {
 				errHandler(err)
 				return
