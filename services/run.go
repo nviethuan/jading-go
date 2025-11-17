@@ -22,7 +22,7 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 
-func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, RSI float64, trendUp bool) {
+func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, RSI float64, trendUp bool, max30d float64) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
 	fmt.Printf("%s Process Buy =======\n", prefixLog)
 	// check if usdt balance is less than 8 and base balance is 0
@@ -43,10 +43,11 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 	// combine all conditions
 	isRSIUnder30 := RSI < 30
 	acceptedMinStopLoss := 7.0
+	availableVyMax30d := askPrice/max30d <= 0.8 // if the ask price is more than 80% of the max 30d high, don't buy
 	// Dùng Max(account.MinStopLoss, acceptedMinStopLoss) để không cho phép MinStopLoss nhỏ hơn 7
-	shouldBuy := !trendUp && isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss)
+	shouldBuy := !trendUp && isRSIUnder30 && (usdtBalance > math.Max(account.MinStopLoss, acceptedMinStopLoss) || usdtBalance > acceptedMinStopLoss) && availableVyMax30d
 
-	fmt.Printf("%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n",
+	fmt.Printf("%s Ask price: %f\n%s Ask value: %f\n%s RSI: %f (<30 - %t)\n%s Should Buy: %t\n%s USDT Balance (>7): %f\n%s Available by Max 30d: %t\n",
 		// ASK
 		prefixLog,
 		askPrice,
@@ -60,6 +61,8 @@ func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBala
 		shouldBuy,
 		prefixLog,
 		usdtBalance,
+		prefixLog,
+		availableVyMax30d,
 	)
 
 	if shouldBuy {
@@ -339,7 +342,8 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		// ------------
 
 		candlestickDataChan := binanceClient.CandlestickData(account, account.Symbol, "1m", 15)
-		candlestickDataChan5m := binanceClient.CandlestickData(account, account.Symbol, "5m", 201)
+		candlestickDataChan5m := binanceClient.CandlestickData(account, account.Symbol, "5m", 101)
+		candlestickDataChan30d := binanceClient.CandlestickData(account, account.Symbol, "1d", 30)
 
 		if candlestickDataChan == nil || candlestickDataChan5m == nil {
 			fmt.Printf("%s %s - STOP! CandlestickData is not available\n", t, account.Symbol)
@@ -348,50 +352,59 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 
 		candles := <-candlestickDataChan
 		candles5m := <-candlestickDataChan5m
+		candles30d := <-candlestickDataChan30d
 
 		candles = candles[:len(candles)-1]
 
 		candles5mLen := len(candles5m) - 1
 
-		candles5m50 := candles5m[candles5mLen-50 : candles5mLen]
-		candles5m200 := candles5m[:candles5mLen]
+		candles5m25 := candles5m[candles5mLen-25 : candles5mLen]
+		candles5m99 := candles5m[:candles5mLen]
 
 		closes := make([]float64, len(candles))
 		for i, c := range candles {
 			closes[i], _ = strconv.ParseFloat(c.Close, 64)
 		}
 
-		closes5m50 := make([]float64, len(candles5m50))
-		for i, c := range candles5m50 {
-			closes5m50[i], _ = strconv.ParseFloat(c.Close, 64)
+		closes5m25 := make([]float64, len(candles5m25))
+		for i, c := range candles5m25 {
+			closes5m25[i], _ = strconv.ParseFloat(c.Close, 64)
 		}
 
-		closes5m200 := make([]float64, len(candles5m200))
-		for i, c := range candles5m200 {
-			closes5m200[i], _ = strconv.ParseFloat(c.Close, 64)
+		closes5m99 := make([]float64, len(candles5m99))
+		for i, c := range candles5m99 {
+			closes5m99[i], _ = strconv.ParseFloat(c.Close, 64)
+		}
+
+		max30d := 0.0
+		for _, c := range candles30d {
+			high, _ := strconv.ParseFloat(c.High, 64)
+			if high > max30d {
+				max30d = high
+			}
 		}
 
 		rsi := talib.Rsi(closes, 13)
-		ema50 := talib.Ema(closes5m50, 50)
-		ema200 := talib.Ema(closes5m200, 200)
+		ema25 := talib.Ema(closes5m25, 25)
+		ema99 := talib.Ema(closes5m99, 99)
 
-		lastEMA50 := ema50[len(ema50)-1]
-		lastEMA200 := ema200[len(ema200)-1]
+		lastEMA25 := ema25[len(ema25)-1]
+		lastEMA99 := ema99[len(ema99)-1]
 
-		trendUp := lastEMA50 > lastEMA200
+		trendUp := lastEMA25 > lastEMA99
 
 		RSI := rsi[len(rsi)-1]
 
 		fmt.Println(t, " _INFO_ RSI: ", RSI)
-		fmt.Println(t, " _INFO_ EMA_50: ", lastEMA50)
-		fmt.Println(t, " _INFO_ EMA_200: ", lastEMA200)
-		fmt.Println(t, " _INFO_ is TrendUp (EMA_50 > EMA_200): ", trendUp)
+		fmt.Println(t, " _INFO_ EMA_25: ", lastEMA25)
+		fmt.Println(t, " _INFO_ EMA_99: ", lastEMA99)
+		fmt.Println(t, " _INFO_ is TrendUp (EMA_25 > EMA_99): ", trendUp)
 
 		wg := sync.WaitGroup{}
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			processBuy(t, account, asks, usdtBalance, baseBalance, RSI, trendUp)
+			processBuy(t, account, asks, usdtBalance, baseBalance, RSI, trendUp, max30d)
 		}()
 		go func() {
 			defer wg.Done()
