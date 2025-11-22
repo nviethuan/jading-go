@@ -21,6 +21,7 @@ import (
 
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
+var timeNow = time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)
 
 func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, RSI float64, trendUp bool, max30d float64) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
@@ -382,6 +383,18 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 			if high > max30d {
 				max30d = high
 			}
+		}
+
+		if time.Since(timeNow) > time.Hour {
+			// INSERT_YOUR_CODE
+			msg := fmt.Sprintf(":information_source: *%s* Bot running for %s. Max 30d price: `%f`", account.Symbol, account.Symbol, max30d)
+			bodyText := slack.NewTextBlockObject("mrkdwn", msg, false, true)
+			bodyBlock := slack.NewSectionBlock(bodyText, nil, nil)
+			blocks := []slack.Block{bodyBlock}
+			if slackClient != nil {
+				go slackClient.SendInfo("🤖 Bot running", "", blocks...)
+			}
+			timeNow = time.Now()
 		}
 
 		rsi := talib.Rsi(closes, 13)
