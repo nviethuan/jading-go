@@ -22,6 +22,7 @@ import (
 var slackClient *utils.SlackClient
 var binanceClient *utils.Binance = &utils.Binance{}
 var timeNow = time.Date(0, 0, 0, 0, 0, 0, 0, time.Local)
+var loc = time.FixedZone("Asia/Ho_Chi_Minh", 7*3600)
 
 func processBuy(t string, account *models.Account, asks *[]binance.Ask, usdtBalance float64, baseBalance float64, RSI float64, trendUp bool, max30d float64) {
 	prefixLog := fmt.Sprintf("%s BUY_%s: ", t, account.Symbol)
@@ -283,11 +284,6 @@ func processSell(t string, account *models.Account, bids *[]binance.Bid, usdtBal
 
 func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.Ask) func() {
 	return func() {
-		loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
 		t := fmt.Sprintf("[%s]", time.Now().In(loc).Format("2006-01-02 15:04:05"))
 		// get account from database
 		account := repositories.NewAccountRepository().FindBySymbol(&symbol, &network)
@@ -378,16 +374,21 @@ func start(symbol string, network string, bids *[]binance.Bid, asks *[]binance.A
 		}
 
 		max30d := 0.0
+		max30dDate := ""
+		about30d := 0
 		for _, c := range candles30d {
 			high, _ := strconv.ParseFloat(c.High, 64)
 			if high > max30d {
 				max30d = high
+				t := time.Unix(int64(c.OpenTime/1000), 0)
+				about30d = int(time.Since(t).Hours() / 24)
+				max30dDate = t.In(loc).Format("2006-01-02 15:04:05")
 			}
 		}
 
 		if time.Since(timeNow) > time.Hour {
 			// INSERT_YOUR_CODE
-			msg := fmt.Sprintf(":information_source: *%s* Bot running for %s. Max 30d price: `%f`", account.Symbol, account.Symbol, max30d)
+			msg := fmt.Sprintf(":information_source: *%s* Bot running for %s. Max 30d price: `%f` on %s (%d days ago)", account.Symbol, account.Symbol, max30d, max30dDate, about30d)
 			bodyText := slack.NewTextBlockObject("mrkdwn", msg, false, true)
 			bodyBlock := slack.NewSectionBlock(bodyText, nil, nil)
 			blocks := []slack.Block{bodyBlock}
